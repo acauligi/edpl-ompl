@@ -68,160 +68,137 @@
 
 using namespace std;
 
-void plan(const std::string &setupFilePath)
-{
-    //FIRM2DSetup *mySetup(new FIRM2DSetup);
+void plan(const std::string &setupFilePath) {
+  //FIRM2DSetup *mySetup(new FIRM2DSetup);
 
-    TwoDPointRobotSetup *mySetup(new TwoDPointRobotSetup);
+  TwoDPointRobotSetup *mySetup(new TwoDPointRobotSetup);
 
-    mySetup->setPathToSetupFile(setupFilePath.c_str());
+  mySetup->setPathToSetupFile(setupFilePath.c_str());
 
-    mySetup->setup();
-    
-    Visualizer::setMode(Visualizer::VZRDrawingMode::PRMViewMode);
+  mySetup->setup();
+  
+  Visualizer::setMode(Visualizer::VZRDrawingMode::PRMViewMode);
 
-    int keepTrying = 1;
+  int keepTrying = 1;
 
-    while(keepTrying)
-    {
-        if(mySetup->solve())
-        {
+  while(keepTrying) {
+    if(mySetup->solve()) {
+#ifdef __linux__
+      // HACK to make a beep sound (linux only)
+      bool ret;
+      //ret = system("sh -c \"echo '\a'> $(tty)\" 2>/dev/null");
+#endif
+      mySetup->Run();
+      OMPL_INFORM("Plan Executed.");
+      Visualizer::doSaveVideo(true);  // true: save the final trajectory executed by the robot
 
 #ifdef __linux__
-            // HACK to make a beep sound (linux only)
-            bool ret;
-            //ret = system("sh -c \"echo '\a'> $(tty)\" 2>/dev/null");
+      // HACK to make a beep sound (linux only)
+      //ret = system("sh -c \"echo '\a'> $(tty)\" 2>/dev/null");
 #endif
 
-            mySetup->Run();
-            OMPL_INFORM("Plan Executed.");
-            Visualizer::doSaveVideo(true);  // true: save the final trajectory executed by the robot
+      keepTrying = 0;
 
-#ifdef __linux__
-            // HACK to make a beep sound (linux only)
-            //ret = system("sh -c \"echo '\a'> $(tty)\" 2>/dev/null");
-#endif
-
-            keepTrying = 0;
-
-        }
-        else
-        {
-            OMPL_INFORM("Unable to find Solution in given time. Either more nodes are needed, or DP could not converge.");
-            
-            break;
-
-            //std::cin>>keepTrying;
-        }
-
+    } else {
+      OMPL_INFORM("Unable to find Solution in given time. Either more nodes are needed, or DP could not converge.");
+      break;
+      //std::cin>>keepTrying;
     }
+  }
 
-    delete mySetup;
+  delete mySetup;
 
-    OMPL_INFORM("Execution Terminated.");
+  OMPL_INFORM("Execution Terminated.");
 
-    QApplication::quit();
+  QApplication::quit();
 
-    return;
+  return;
 }
 
 #ifdef USE_ROS
-void planROS(const std::string &setupFilePath)
-{
+void planROS(const std::string &setupFilePath) {
+  FIRMAruco2DROSSetup *mySetup(new FIRMAruco2DROSSetup);
 
-    FIRMAruco2DROSSetup *mySetup(new FIRMAruco2DROSSetup);
+  mySetup->setPathToSetupFile(setupFilePath.c_str());
 
-    mySetup->setPathToSetupFile(setupFilePath.c_str());
+  mySetup->setup();
 
-    mySetup->setup();
+  Visualizer::setMode(Visualizer::VZRDrawingMode::PRMViewMode);
 
-    Visualizer::setMode(Visualizer::VZRDrawingMode::PRMViewMode);
+  int mode = 0;
 
-    int mode = 0;
+  OMPL_INFORM("Choose what mode (0: Standard FIRM, 1 : Rollout , 2: Kidnapping-Multi-Modal)? : ");
 
-    OMPL_INFORM("Choose what mode (0: Standard FIRM, 1 : Rollout , 2: Kidnapping-Multi-Modal)? : ");
+  //cin>>mode;
 
-    //cin>>mode;
+  int keepTrying = 1;
 
-    int keepTrying = 1;
+  ros::spinOnce();
 
-    ros::spinOnce();
+  while(keepTrying) {
+    if(mySetup->solve()) {
+      //mySetup->executeSolution(mode);
+      mySetup->Run(mode);
 
-    while(keepTrying)
-    {
-        if(mySetup->solve())
-        {
-            //mySetup->executeSolution(mode);
-            mySetup->Run(mode);
+      OMPL_INFORM("Plan Executed.");
 
-            OMPL_INFORM("Plan Executed.");
+      Visualizer::doSaveVideo(false);
 
-            Visualizer::doSaveVideo(false);
-
-            keepTrying = 0;
-
-        }
-        else
-        {
-            OMPL_INFORM("Unable to find Solution in given time, would you like to continue attempt. (1: yes, 0 :no) ? :");
-
-            std::cin>>keepTrying;
-        }
-
+      keepTrying = 0;
     }
+    else {
+      OMPL_INFORM("Unable to find Solution in given time, would you like to continue attempt. (1: yes, 0 :no) ? :");
+      std::cin>>keepTrying;
+    }
+  }
 
-    delete mySetup;
-
-    OMPL_INFORM("Execution Terminated, Close Terminal");
+  delete mySetup;
+  OMPL_INFORM("Execution Terminated, Close Terminal");
 
 }
 #endif
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
+  #ifdef USE_ROS
+    // Initialize the ros node
+    ros::init(argc, argv, "firm_planner");
+  #endif
 
-    #ifdef USE_ROS
-        // Initialize the ros node
-        ros::init(argc, argv, "firm_planner");
-    #endif
+  //srand(239645);
 
-    //srand(239645);
+  //arma_rng::set_seed(239645);
+  arma::arma_rng::set_seed_random();
 
-    //arma_rng::set_seed(239645);
-    arma::arma_rng::set_seed_random();
+  QApplication app(argc, argv);
 
-    QApplication app(argc, argv);
+  MyWindow window;
 
-    MyWindow window;
+  window.resize(window.sizeHint());
 
-    window.resize(window.sizeHint());
+  window.showMaximized();
 
-    window.showMaximized();
+  window.resetCamera();
 
-    window.resetCamera();
+  /**
+   Below you have 2 options:
 
-    /**
-     Below you have 2 options:
+      1. To plan just using the provided simulation
 
-        1. To plan just using the provided simulation
+      2. To plan with ROS integration, the provided example listens for aruco_marker_publisher and advertises robot commands to geometry::twist
+  */
+  #ifndef USE_ROS
+      boost::thread solveThread(plan,argv[1]);
+  #endif
 
-        2. To plan with ROS integration, the provided example listens for aruco_marker_publisher and advertises robot commands to geometry::twist
-    */
-    #ifndef USE_ROS
-        boost::thread solveThread(plan,argv[1]);
-    #endif
+  #ifdef USE_ROS
+      boost::thread solveThread(planROS,argv[1]);
+  #endif
 
-    #ifdef USE_ROS
-        boost::thread solveThread(planROS,argv[1]);
-    #endif
+  app.exec();
 
-    app.exec();
+  solveThread.join();
 
-    solveThread.join();
+  OMPL_INFORM("Task Complete");
 
-    OMPL_INFORM("Task Complete");
-
-    exit(0);
-
-
+  exit(0);
 }

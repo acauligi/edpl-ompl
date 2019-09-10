@@ -92,9 +92,11 @@ add_library (bsp_lib
 	src/MotionModels/TwoDPointMotionModel.cpp
 	src/MotionModels/OmnidirectionalMotionModel.cpp
 	src/MotionModels/UnicycleMotionModel.cpp
+	src/MotionModels/TwoDPointMotionModel.cpp
 	src/MotionModels/UnicycleStatePropagator.cpp
 	src/MotionModels/OmnidirectionalStatePropagator.cpp
 	src/MotionModels/TwoDPointStatePropagator.cpp
+	src/MotionModels/FlatQuadStatePropagator.cpp
 	src/ObservationModels/CamAruco2DObservationModel.cpp
 	src/ObservationModels/TwoDBeaconObservationModel.cpp
 	src/ObservationModels/HeadingBeaconObservationModel.cpp

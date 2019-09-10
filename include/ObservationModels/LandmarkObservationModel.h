@@ -81,9 +81,9 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
     /** \brief Jx = dh/dx */
     JacobianType getObservationJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
-    LandmarkObservationModel::JacobianType getObservationHx(const ompl::base::State *state, arma::mat& Hx); 
-    LandmarkObservationModel::JacobianType getObservationHy(const ompl::base::State *state, arma::mat& Hy); 
-    LandmarkObservationModel::JacobianType getObservationHz(const ompl::base::State *state, arma::mat& Hz); 
+    void getObservationHx(const ompl::base::State *state, arma::mat& Hx); 
+    void getObservationHy(const ompl::base::State *state, arma::mat& Hx); 
+    void getObservationHz(const ompl::base::State *state, arma::mat& Hx); 
     
     /** \brief Jv = dh/dv */
     JacobianType getNoiseJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);

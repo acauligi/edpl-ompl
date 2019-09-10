@@ -70,11 +70,13 @@
 #include "MotionModels/UnicycleMotionModel.h"
 #include "MotionModels/OmnidirectionalMotionModel.h"
 #include "MotionModels/TwoDPointMotionModel.h"
+#include "MotionModels/FlatQuadMotionModel.h"
 
 //State Propagators
 #include "MotionModels/UnicycleStatePropagator.h"
 #include "MotionModels/TwoDPointStatePropagator.h"
 #include "MotionModels/OmnidirectionalStatePropagator.h"
+#include "MotionModels/FlatQuadStatePropagator.h"
 
 //LinearSystem
 #include "LinearSystem/LinearSystem.h"

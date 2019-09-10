@@ -34,9 +34,10 @@
 
 /* Authors: Abhishek Cauligi */
 
+#include <tinyxml.h>
+
 #include "Spaces/FlatQuadBeliefSpace.h"
 #include "ObservationModels/LandmarkObservationModel.h"
-#include <tinyxml.h>
 #include "Visualization/Visualizer.h"
 #include "Utils/FIRMUtils.h"
 
@@ -44,33 +45,30 @@ typename LandmarkObservationModel::ObservationType
 LandmarkObservationModel::getObservation(const ompl::base::State *state, bool isSimulation) {
 	using namespace arma;
 
-  mat R(3,3);
-  // R = state->as<FlatQuadBeliefSpace::StateType>()->flatToDCM();
-
-  ObservationType z(2);
-
-  if(isSimulation) {
-    colvec headingNoiseVec =  randn<colvec>(1);
-    colvec headingNoise = sigmaHeading_%headingNoiseVec;
-  }
+  ObservationType z(landmarkInfoDim*landmarks_.size());
 
   //generate observation from state, and corrupt with the given noise
-  for(unsigned int i = 0; i < landmarks_.size(); i++) {
+  for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
 
     colvec noise = zeros<colvec>(obsNoiseDim);
 
     if(isSimulation) {
       // generate gaussian noise
-      //get standard deviations of noise (sqrt of covariance matrix)
-      //extract state from Cfg and normalize
-      //generate noise scaling/shifting factor
-      //generate raw noise
+      // get standard deviations of noise (sqrt of covariance matrix)
+      // extract state from Cfg and normalize
+      // generate noise scaling/shifting factor
+      // generate raw noise
       colvec randNoiseVec = randn<colvec>(obsNoiseDim);
 
-      //generate noise from a distribution scaled and shifted from
-      //normal distribution N(0,1) to N(0,eta*range + sigma)
-      //(shifting was done in GetNoiseCovariance)
+      // generate noise from a distribution scaled and shifted from
+      // normal distribution N(0,1) to N(0,eta*range + sigma)
+      // (shifting was done in GetNoiseCovariance)
       noise = sigma_%randNoiseVec;
+    }
+
+    colvec image_meas = zeros<colvec>(landmarkInfoDim);
+    if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
+      z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas + noise;
     }
   }
  	return z;
@@ -80,10 +78,14 @@ typename LandmarkObservationModel::ObservationType
 LandmarkObservationModel::getObservationPrediction(const ompl::base::State *state, const ObservationType& Zg) {
 	using namespace arma;
 
-  ObservationType z(3);
+  ObservationType z(landmarkInfoDim*landmarks_.size());
 
-  //generate observation from predicted state
-  for(unsigned int i = 0; i < landmarks_.size(); i++) {
+  //generate observation from state
+  for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
+    colvec image_meas = zeros<colvec>(landmarkInfoDim);
+    if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
+      z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas; 
+    }
   }
 
  	return z;
@@ -98,7 +100,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
 
   mat H(2*number_of_landmarks, 12); // Since we are passing the common id list
 
-  for(unsigned int ii=0; ii<number_of_landmarks ; ii++) {
+  for(unsigned int ii=0; ii<number_of_landmarks; ii++) {
     mat H_i(2,12);
     
     colvec lk_w = landmarks_[ii];
@@ -111,19 +113,22 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
     // generate list of matrices corresponding to derivatives of columns of Rbw_ w.r.t. x
     // i.e. each element of dRbw_dx is 3x12 matrix
     std::vector<mat> dRbw_dx;
-    std::vector<colvec> dpbw_dx;
-    for (int jj=0; jj<3; jj++) {
+    for (size_t jj=0; jj<3; jj++) {
       dRbw_dx.push_back(zeros(3,12));
+      this->getObservationHx(state,dRbw_dx[jj],jj);
     }
-
-    this->getObservationHx(state,dRbw_dx[0]);
-    this->getObservationHy(state,dRbw_dx[1]);
-    this->getObservationHz(state,dRbw_dx[2]);
+    
+    std::vector<colvec> dpbw_dx;
+    for (size_t jj=0; jj<3; jj++) {
+      colvec local_grad = zeros(12); 
+      local_grad[jj] = 1.;
+      dpbw_dx.push_back(local_grad);
+    }
 
     mat dlk_c_dx = zeros(3,12);
     for (int jj=0; jj<3; jj++) {
       for (int kk=0; kk<3; kk++) {
-        dlk_c_dx.row(jj) += (lk_c[kk]*this->K_.row(jj)*this->Rcb_ * dRbw_dx[kk] + dpbw_dx[kk] * this->K_.row(jj) * Rbw_.col(kk));
+        dlk_c_dx.row(jj) += (lk_c[kk]*this->K_.row(jj)*this->Rcb_ * dRbw_dx[kk] + dpbw_dx[kk] * K_.row(jj) * Rbw_.col(kk));
       }
     }
 
@@ -134,8 +139,8 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   return H;
 }
 
-void LandmarkObservationModel::getObservationHx(const ompl::base::State *state, arma::mat& Hx) {
-  // derivative of Rbw(:,1) w.r.t. x
+void LandmarkObservationModel::getObservationHx(const ompl::base::State *state, arma::mat& Hx, size_t coord_idx) {
+  // derivative of Rbw(:,coord_idx) w.r.t. x
   using namespace arma;
 
   Hx = zeros(3,12);
@@ -153,78 +158,40 @@ void LandmarkObservationModel::getObservationHx(const ompl::base::State *state, 
   double z11 = x[10]; 
   double z12 = x[11]; 
 
-  Hx.row(0) = rowvec({  0., 0., -(pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  -(pow(z10,3)*sin(z3) + 2*z9*pow(z10,2)*cos(z3) + 2*z9*pow(z11,2)*cos(z3) - pow(z9,2)*z10*sin(z3) + z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2),  -(z9*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0. } );
-  Hx.row(1) = rowvec({  0., 0., -(z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., (z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0. });
-  Hx.row(2) = rowvec({  0., 0., 0., 0., 0., 0., 0., 0., (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
+  if (coord_idx==0) {
+    Hx.row(0) = rowvec({  0., 0., -(pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  -(pow(z10,3)*sin(z3) + 2*z9*pow(z10,2)*cos(z3) + 2*z9*pow(z11,2)*cos(z3) - pow(z9,2)*z10*sin(z3) + z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2),  -(z9*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0. } );
+    Hx.row(1) = rowvec({  0., 0., -(z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., (z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0. });
+    Hx.row(2) = rowvec({  0., 0., 0., 0., 0., 0., 0., 0., (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
 
-  // Jacobian for second way of recovering Rbw
-  if (false) {
-    Hx.row(0) = rowvec( { 0, 0, -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-    Hx.row(1) = rowvec( { 0, 0, -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (- pow(z10,3)*cos(z3) + pow(z9,2)*z10*cos(z3) - z10*pow(z11,2)*cos(z3) + 2*z9*pow(z10,2)*sin(z3) + 2*z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(z9*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.}); 
-    Hx.row(2) = rowvec( { 0, 0, 0, 0, 0, 0, 0, 0, (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-  }
-}
+    // Jacobian for second way of recovering Rbw
+    if (false) {
+      Hx.row(0) = rowvec( { 0, 0, -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+      Hx.row(1) = rowvec( { 0, 0, -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (- pow(z10,3)*cos(z3) + pow(z9,2)*z10*cos(z3) - z10*pow(z11,2)*cos(z3) + 2*z9*pow(z10,2)*sin(z3) + 2*z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(z9*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.}); 
+      Hx.row(2) = rowvec( { 0, 0, 0, 0, 0, 0, 0, 0, (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+    }
+  } else if (coord_idx==1) {
+    Hx.row(0) = rowvec( { 0., 0., (pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., -(pow(z10,3)*cos(z3) - pow(z9,2)*z10*cos(z3) + z10*pow(z11,2)*cos(z3) - 2*z9*pow(z10,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(pow(z9,3)*cos(z3) - z9*pow(z10,2)*cos(z3) + z9*pow(z11,2)*cos(z3) + 2*pow(z9,2)*z10*sin(z3) + 2*z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+    Hx.row(1) = rowvec( { 0., 0., -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
+    Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
 
-void LandmarkObservationModel::getObservationHy(const ompl::base::State *state, arma::mat& Hx) {
-  // derivative of Rbw(:,1) w.r.t. x
-  using namespace arma;
+    // Jacobian for second way of recovering Rbw
+    if (false) {
+      Hx.row(0) = rowvec( { 0., 0., (z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+      Hx.row(1) = rowvec( { 0., 0., -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  (z10*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(- pow(z9,3)*sin(z3) + 2*pow(z9,2)*z10*cos(z3) + 2*z10*pow(z11,2)*cos(z3) + z9*pow(z10,2)*sin(z3) - z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  (2*z10*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+      Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), });
+    }
+  } else {
+    // coord_idx=2
+    Hx.row(0) = rowvec({ 0., 0., -(z11*(z10*cos(z3) - z9*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) - pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -((z9*cos(z3) + z10*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+    Hx.row(1) = rowvec({ 0, 0, (z9*cos(z3) + z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, (pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0});
+    Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0, -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
 
-  Hx = zeros(3,12);
-  colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
-  double z1 = x[0]; 
-  double z2 = x[1]; 
-  double z3 = x[2]; 
-  double z4 = x[3]; 
-  double z5 = x[4]; 
-  double z6 = x[5]; 
-  double z7 = x[6]; 
-  double z8 = x[7]; 
-  double z9 = x[8]; 
-  double z10 = x[9]; 
-  double z11 = x[10]; 
-  double z12 = x[11]; 
-
-
-  Hx.row(0) = rowvec( { 0., 0., (pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., -(pow(z10,3)*cos(z3) - pow(z9,2)*z10*cos(z3) + z10*pow(z11,2)*cos(z3) - 2*z9*pow(z10,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(pow(z9,3)*cos(z3) - z9*pow(z10,2)*cos(z3) + z9*pow(z11,2)*cos(z3) + 2*pow(z9,2)*z10*sin(z3) + 2*z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-  Hx.row(1) = rowvec( { 0., 0., -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
-  Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
-
-  // Jacobian for second way of recovering Rbw
-  if (false) {
-    Hx.row(0) = rowvec( { 0., 0., (z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-    Hx.row(1) = rowvec( { 0., 0., -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  (z10*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(- pow(z9,3)*sin(z3) + 2*pow(z9,2)*z10*cos(z3) + 2*z10*pow(z11,2)*cos(z3) + z9*pow(z10,2)*sin(z3) - z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  (2*z10*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-    Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), });
-  }
-}
-
-void LandmarkObservationModel::getObservationHz(const ompl::base::State *state, arma::mat& Hx) {
-  // derivative of Rbw(:,3) w.r.t. x
-  using namespace arma;
-
-  Hx = zeros(3,12);
-  colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
-  double z1 = x[0]; 
-  double z2 = x[1]; 
-  double z3 = x[2]; 
-  double z4 = x[3]; 
-  double z5 = x[4]; 
-  double z6 = x[5]; 
-  double z7 = x[6]; 
-  double z8 = x[7]; 
-  double z9 = x[8]; 
-  double z10 = x[9]; 
-  double z11 = x[10]; 
-  double z12 = x[11]; 
-
-  Hx.row(0) = rowvec({ 0., 0., -(z11*(z10*cos(z3) - z9*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) - pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -((z9*cos(z3) + z10*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-  Hx.row(1) = rowvec({ 0, 0, (z9*cos(z3) + z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, (pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0});
-  Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0, -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-
-  // Jacobian for second way of recovering Rbw
-  if (false) {
-    Hx.row(0) = rowvec({ 0., 0., -(z10*cos(z3) - z9*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-    Hx.row(1) = rowvec({ 0., 0., (z11*(z9*cos(z3) + z10*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., (z11*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -((z10*cos(z3) - z9*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.});
-    Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+    // Jacobian for second way of recovering Rbw
+    if (false) {
+      Hx.row(0) = rowvec({ 0., 0., -(z10*cos(z3) - z9*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+      Hx.row(1) = rowvec({ 0., 0., (z11*(z9*cos(z3) + z10*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., (z11*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -((z10*cos(z3) - z9*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.});
+      Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+    }
   }
 }
 
@@ -233,7 +200,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getNoi
 
   unsigned int number_of_landmarks = landmarks_.size() ;
 
-  mat M(number_of_landmarks,number_of_landmarks);
+  mat M(2*number_of_landmarks,2*number_of_landmarks);
   M.eye();
   return M;
 }
@@ -241,11 +208,9 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getNoi
 typename LandmarkObservationModel::ObservationType LandmarkObservationModel::computeInnovation(const ompl::base::State *predictedState, const ObservationType& Zg) {
 	using namespace arma;
 
-	colvec Zprd = getObservationPrediction(predictedState, Zg);
+	colvec Z_pred = getObservationPrediction(predictedState, Zg);
 
-	colvec innov = Zg - Zprd;
-
-	return innov; 
+	return Zg - Z_pred; 
 
 }
 
@@ -254,16 +219,28 @@ arma::mat LandmarkObservationModel::getObservationNoiseCovariance(const ompl::ba
 
   unsigned int number_of_landmarks = landmarks_.size();
 
-  mat R(1+number_of_landmarks,1+number_of_landmarks);
-
+  mat R(2*number_of_landmarks,2*number_of_landmarks);
   R.eye();
-
   R = R*pow(this->sigma_(0),2);
 
-  // heading obs error covariance needs to be set separately
-  R(0,0) = pow(sigmaHeading_[0],2);
-
   return R;
+}
+    
+bool LandmarkObservationModel::getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas) {
+	using namespace arma;
+	colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+
+  // position of quad pbw and orientation of world w.r.t. quad Rwb 
+  colvec pbw = x_vec.subvec(0,2); 
+	mat Rwb(3,3); 
+	// mat Rwb = state->as<FlatQuadBeliefSpace::StateType>()->flatToDCM();
+	
+  colvec lmk_world = this->K_ * (this->Rcb_* Rwb.t() * landmark + this->Rcb_ * pbw + this->pcb_);
+  image_meas[0] = lmk_world[0] / lmk_world[2];
+  image_meas[1] = lmk_world[1] / lmk_world[2];
+
+  // TODO(acauligi): add check to determine whether feature is within viewing frustum 
+  return true;
 }
 
 bool LandmarkObservationModel::isStateObservable(const ompl::base::State *state) {
@@ -308,17 +285,17 @@ void LandmarkObservationModel::loadLandmarks(const char *pathToSetupFile) {
 		itemElement = child->ToElement();
 		assert( itemElement );
 
-		ObservationType landmark(4);
+		ObservationType landmark(1+landmarkInfoDim);    // +1 for ID tag
 		landmark.zeros();
-		double attributeVal;
-		itemElement->QueryDoubleAttribute("id", &attributeVal) ;
-		landmark[0] = attributeVal;
-		itemElement->QueryDoubleAttribute("x", &attributeVal) ;
-		landmark[1] = attributeVal;
-		itemElement->QueryDoubleAttribute("y", &attributeVal) ;
-		landmark[2] = attributeVal;
-		itemElement->QueryDoubleAttribute("y", &attributeVal) ;
-		landmark[3] = attributeVal;
+		double attribute_val;
+		itemElement->QueryDoubleAttribute("id", &attribute_val) ;
+		landmark[0] = attribute_val;
+		itemElement->QueryDoubleAttribute("x", &attribute_val) ;
+		landmark[1] = attribute_val;
+		itemElement->QueryDoubleAttribute("y", &attribute_val) ;
+		landmark[2] = attribute_val;
+		itemElement->QueryDoubleAttribute("z", &attribute_val) ;
+		landmark[3] = attribute_val;
 
 		this->landmarks_.push_back(landmark);
 	}
@@ -350,26 +327,61 @@ void LandmarkObservationModel::loadParameters(const char *pathToSetupFile) {
   TiXmlNode* child = 0;
 
   child = node->FirstChild("LandmarkObservationModel");
-  
+
   //Iterate through all the landmarks and put them into the "landmarks_" list
   assert( child );
   itemElement = child->ToElement();
   assert( itemElement );
+  double attribute_val;
 
-  double sigma_ss = 0, sigma_heading = 0;
+  // Read camera intrinsics matrix parameters 
+  this->K_ = arma::zeros(3,3);
+  itemElement->QueryDoubleAttribute("K_alpha_u", &attribute_val);
+  this->K_[0,0] = attribute_val;
+  itemElement->QueryDoubleAttribute("K_gamma", &attribute_val);
+  this->K_[0,1] = attribute_val;
+  itemElement->QueryDoubleAttribute("K_u0", &attribute_val);
+  this->K_[0,2] = attribute_val;
+  itemElement->QueryDoubleAttribute("K_alpha_v", &attribute_val);
+  this->K_[1,1] = attribute_val;
+  itemElement->QueryDoubleAttribute("K_v0", &attribute_val);
+  this->K_[1,2] = attribute_val;
+  this->K_[2,2] = 1;
 
-  itemElement->QueryDoubleAttribute("sigma_ss", &sigma_ss) ;
-  itemElement->QueryDoubleAttribute("sigma_heading", &sigma_heading) ;
+  // Read body to camera rotation matrix 
+  this->Rcb_ = arma::zeros(3,3);
+  itemElement->QueryDoubleAttribute("Rcb_00", &attribute_val);
+  this->Rcb_[0,0] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_01", &attribute_val);
+  this->Rcb_[0,1] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_02", &attribute_val);
+  this->Rcb_[0,2] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_10", &attribute_val);
+  this->Rcb_[1,0] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_11", &attribute_val);
+  this->Rcb_[1,1] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_12", &attribute_val);
+  this->Rcb_[1,2] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_20", &attribute_val);
+  this->Rcb_[2,0] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_21", &attribute_val);
+  this->Rcb_[2,1] = attribute_val;
+  itemElement->QueryDoubleAttribute("Rcb_22", &attribute_val);
+  this->Rcb_[2,2] = attribute_val;
 
+  // Read body to camera translation 
+  this->pcb_ = arma::zeros(3);
+  itemElement->QueryDoubleAttribute("pcb_x", &attribute_val);
+  this->pcb_[0] = attribute_val;
+  itemElement->QueryDoubleAttribute("pcb_y", &attribute_val);
+  this->pcb_[1] = attribute_val;
+  itemElement->QueryDoubleAttribute("pcb_z", &attribute_val);
+  this->pcb_[2] = attribute_val;
 
-
-  this->sigma_ << sigma_ss << endr;
-
-  sigmaHeading_<<sigma_heading<<endr;
+  // Read in noise parameter for adding to image measurements
+  itemElement->QueryDoubleAttribute("sigma_ss", &attribute_val) ;
+  this->sigma_ << attribute_val << endr;
 
   OMPL_INFORM("LandmarkObservationModel: sigma_ss = ");
-  std::cout<<sigma_ss<<std::endl;
-
-  OMPL_INFORM("LandmarkObservationModel: sigma_heading = ");
-  std::cout<<sigma_heading<<std::endl;
+  std::cout<<this->sigma_<<std::endl;
 }

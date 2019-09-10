@@ -105,7 +105,7 @@ class FlatQuadMotionModel: public MotionModelMethod {
     arma::colvec eta_; //
 
     /** \brief  Covariance of state additive noise */
-    arma::mat    P_Wg_; //
+    arma::mat P_Wg_; //
     
     /** \brief Continuous time LTI triple integrator dynamics matrices */ 
     arma::mat A_; 

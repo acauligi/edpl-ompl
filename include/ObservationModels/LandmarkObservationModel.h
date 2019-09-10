@@ -37,14 +37,17 @@
 #ifndef LANDMARK_OBSERVATION_H_
 #define LANDMARK_OBSERVATION_H_
 
-#include "ObservationModelMethod.h"
 #include <boost/math/constants/constants.hpp>
+
+#include "ObservationModelMethod.h"
+
 /**
   @par Short Description
-  This is an Observation model method based on beacons to which we can measure we can signal strength.
-  Signal Strength falls quadratically with distance. Additionally this model provides a direct measurement of heading.
+  This is an Observation model method based on known landmarks in world
+  frame that are transformed into image measurements using a perspective
+  camera model
 
-  \brief observations are signal strength of beacons with unique ids.
+  \brief image measurements of known landmarks in world frame. 
 */
 class LandmarkObservationModel : public ObservationModelMethod {
 
@@ -81,9 +84,7 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
     /** \brief Jx = dh/dx */
     JacobianType getObservationJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
-    void getObservationHx(const ompl::base::State *state, arma::mat& Hx); 
-    void getObservationHy(const ompl::base::State *state, arma::mat& Hx); 
-    void getObservationHz(const ompl::base::State *state, arma::mat& Hx); 
+    void getObservationHx(const ompl::base::State *state, arma::mat& Hx, size_t coord_idx); 
     
     /** \brief Jv = dh/dv */
     JacobianType getNoiseJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
@@ -98,8 +99,8 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
   private:
 
-    /** \brief Estimates the range and bearing from given state to landmark */
-    void calculateRangeToLandmark(const ompl::base::State *state, const arma::colvec& landmark, double& range);
+    /** \brief Estimates the 2D camera measurements of a landmark; returns false if landmark not visible */
+    bool getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas); 
 
     std::vector<arma::colvec> landmarks_;
 
@@ -107,8 +108,6 @@ class LandmarkObservationModel : public ObservationModelMethod {
     void loadLandmarks(const char *pathToSetupFile);
 
     void loadParameters(const char *pathToSetupFile);
-
-    arma::colvec sigmaHeading_;
 
     arma::mat K_;    // camera intrinsics matrix
     arma::mat Rcb_;  // body to camera rotation matrix

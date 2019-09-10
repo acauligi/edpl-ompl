@@ -219,11 +219,11 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   itemElement->QueryDoubleAttribute("dt", &dt) ;
 
   // parameters used to compute process noise values
-  this->sigma_ << sigmaV << sigmaV <<endr;
-  this->eta_  << etaV << etaV << endr;
+  this->sigma_ << sigmaV << sigmaV << sigmaV << sigmaV << endr;
+  this->eta_  << etav << etav << etav << etav << endr;
 
-  rowvec Wg_root_vec(2);
-  Wg_root_vec << windNoisePos << windNoisePos << endr;
+  rowvec Wg_root_vec(4);
+  Wg_root_vec << windNoisePos << windNoisePos << windNoisePos << windNoisePos << endr;
   this->P_Wg_ = diagmat(square(Wg_root_vec));
 
   this->maxLinearVelocity_      = maxLinearVelocity;

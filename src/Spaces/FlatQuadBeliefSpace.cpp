@@ -105,7 +105,7 @@ void FlatQuadBeliefSpace::freeState(State *state) const {
 double FlatQuadBeliefSpace::distance(const State* state1, const State *state2) {
   double dx = state1->as<StateType>()->getX() - state2->as<StateType>()->getX();
   double dy = state1->as<StateType>()->getY() - state2->as<StateType>()->getY();
-  double dy = state1->as<StateType>()->getZ() - state2->as<StateType>()->getZ();
+  double dz = state1->as<StateType>()->getZ() - state2->as<StateType>()->getZ();
 
   // TODO(acauligi): include rotation distance metric?
   return pow(dx*dx+dy*dy+dz*dz, 0.5);
@@ -157,9 +157,9 @@ arma::mat FlatQuadBeliefSpace::flatToDCM(const State *state) {
   arma::mat R(3,3);
 
   arma::colvec acc(4), t(3), xc(3), yc(3), zb(3), yb(3), xb(3);
-  double psi = state->getYaw();
+  double psi = state->as<StateType>()->getYaw();
 
-  acc = state->getAccel();
+  acc = state->as<StateType>()->getAcceleration();
   t[0] = acc[0];
   t[1] = acc[1];
   t[2] = acc[2];    // TODO(acauligi): add gravity value
@@ -169,10 +169,10 @@ arma::mat FlatQuadBeliefSpace::flatToDCM(const State *state) {
   yc[0] = -sin(psi);  yc[2] = cos(psi); yc[2] = 0;
 
   // check whether xc or yc is more normal with zb
-  double xc_zb_dist = fabs(arma::cross(zb,xc));
-  double yc_zb_dist = fabs(arma::cross(zb,yc));
+  double xc_zb_dist = arma::norm(arma::cross(zb,xc));
+  double yc_zb_dist = arma::norm(arma::cross(zb,yc));
 
-  if (xc_zb_dixt > yc_zb_dist) {
+  if (xc_zb_dist > yc_zb_dist) {
     yb = arma::cross(zb,xc);
     yb = arma::normalise(yb);
     xb = arma::cross(yb,zb);

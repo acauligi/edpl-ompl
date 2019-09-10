@@ -51,6 +51,7 @@
 //Spaces
 #include "Spaces/SE2BeliefSpace.h"
 #include "Spaces/R2BeliefSpace.h"
+#include "Spaces/FlatQuadBeliefSpace.h"
 #include "SpaceInformation/SpaceInformation.h"
 
 #ifdef USE_ROS
@@ -62,6 +63,7 @@
 #include "ObservationModels/CamAruco2DObservationModel.h"
 #include "ObservationModels/TwoDBeaconObservationModel.h"
 #include "ObservationModels/HeadingBeaconObservationModel.h"
+#include "ObservationModels/LandmarkObservationModel.h"
 
 //Motion Models
 #include "MotionModels/MotionModelMethod.h"

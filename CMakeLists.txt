@@ -98,6 +98,7 @@ add_library (bsp_lib
 	src/ObservationModels/CamAruco2DObservationModel.cpp
 	src/ObservationModels/TwoDBeaconObservationModel.cpp
 	src/ObservationModels/HeadingBeaconObservationModel.cpp
+	src/ObservationModels/LandmarkObservationModel.cpp
 	src/Planner/FIRM.cpp
 	src/Planner/FIRMCP.cpp
 	src/Planner/NBM3P.cpp
@@ -110,6 +111,7 @@ add_library (bsp_lib
 	src/SpaceInformation/SpaceInformation.cpp
 	src/Spaces/SE2BeliefSpace.cpp
 	src/Spaces/R2BeliefSpace.cpp
+  src/Spaces/FlatQuadBeliefSpace.cpp
 	src/Utils/FIRMUtils.cpp
 	src/Visualization/GLWidget.cpp
 	src/Visualization/Visualizer.cpp

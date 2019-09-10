@@ -46,7 +46,7 @@
 
   \brief observations are signal strength of beacons with unique ids.
 */
-class HeadingBeaconObservationModel : public ObservationModelMethod {
+class LandmarkObservationModel : public ObservationModelMethod {
 
   static const int stateDim = 3;
   static const int landmarkInfoDim = 3; /*[X, Y, Z]*/
@@ -59,7 +59,7 @@ class HeadingBeaconObservationModel : public ObservationModelMethod {
     typedef arma::mat JacobianType;
 
     /** \brief Constructor */
-    HeadingBeaconObservationModel(ompl::control::SpaceInformationPtr si, const char *pathToSetupFile) : ObservationModelMethod(si) {
+    LandmarkObservationModel(ompl::control::SpaceInformationPtr si, const char *pathToSetupFile) : ObservationModelMethod(si) {
       // initialize etaPhi_, etaD_, sigma_;
       this->loadLandmarks(pathToSetupFile);
       this->loadParameters(pathToSetupFile);
@@ -81,6 +81,9 @@ class HeadingBeaconObservationModel : public ObservationModelMethod {
 
     /** \brief Jx = dh/dx */
     JacobianType getObservationJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
+    LandmarkObservationModel::JacobianType getObservationHx(const ompl::base::State *state, arma::mat& Hx); 
+    LandmarkObservationModel::JacobianType getObservationHy(const ompl::base::State *state, arma::mat& Hy); 
+    LandmarkObservationModel::JacobianType getObservationHz(const ompl::base::State *state, arma::mat& Hz); 
     
     /** \brief Jv = dh/dv */
     JacobianType getNoiseJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
@@ -106,6 +109,10 @@ class HeadingBeaconObservationModel : public ObservationModelMethod {
     void loadParameters(const char *pathToSetupFile);
 
     arma::colvec sigmaHeading_;
+
+    arma::mat K_;    // camera intrinsics matrix
+    arma::mat Rcb_;  // body to camera rotation matrix
+    arma::colvec pcb_; // body to camera translation
 
 };
 

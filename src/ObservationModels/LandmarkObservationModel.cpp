@@ -45,7 +45,7 @@ LandmarkObservationModel::getObservation(const ompl::base::State *state, bool is
 	using namespace arma;
 
   mat R(3,3);
-  R = FlatBeliefSpace::flatToDCM(state);
+  R = state->flatToDCM(state);
 
   ObservationType z(2);
 
@@ -94,13 +94,11 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
 
   unsigned int number_of_landmarks = landmarks_.size();
 
-  colvec xVec = state->as<FlatBeliefSpace::StateType>()->getArmaData();
+  colvec xVec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
 
   mat H(2*number_of_landmarks, 12); // Since we are passing the common id list
 
-  std::vector<arma::mat> 
-
-  for(unsigned int ii = 0; ii < number_of_landmarks ; ii++) {
+  for(unsigned int ii=0; ii<number_of_landmarks ; ii++) {
     mat H_i(2,12);
     
     colvec lk_w = landmarks_[ii];
@@ -113,20 +111,21 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
     // generate list of matrices corresponding to derivatives of columns of Rbw_ w.r.t. x
     // i.e. each element of dRbw_dx is 3x12 matrix
     std::vector<mat> dRbw_dx;
+    std::vector<colvec> dpbw_dx;
     dRbw_dx.resize(3);
     this->getObservationHx(state,dRbw_dx[0]);
     this->getObservationHy(state,dRbw_dx[1]);
     this->getObservationHz(state,dRbw_dx[2]);
 
     mat dlk_c_dx = zeros(3,12);
-    for (int ii=0; ii<3; ii++) {
-      for (int jj=0; jj<3; jj++) {
-        dlk_c_dx[ii] += lk_c[jj]*this->K_.row(ii)*this->Rcb_ * dRbw_dx[jj] + dpbw_dx[jj] * this->K_.row(ii) * Rbw_.col(jj);
+    for (int jj=0; jj<3; jj++) {
+      for (int kk=0; kk<3; kk++) {
+        dlk_c_dx[jj] += lk_c[kk]*this->K_.row(jj)*this->Rcb_ * dRbw_dx[kk] + dpbw_dx[kk] * this->K_.row(jj) * Rbw_.col(kk);
       }
     }
 
-    H_i.row(0) = (dlk_c_dx.row(0)*lk_c[2] - lk_c[0]*dlk_c_dx.row(2)) / (lk_c[2]*lk_c[2])
-    H_i.row(1) = (dlk_c_dx.row(1)*lk_c[2] - lk_c[1]*dlk_c_dx.row(2)) / (lk_c[2]*lk_c[2])
+    H_i.row(0) = (dlk_c_dx.row(0)*lk_c[2] - lk_c[0]*dlk_c_dx.row(2)) / (lk_c[2]*lk_c[2]);
+    H_i.row(1) = (dlk_c_dx.row(1)*lk_c[2] - lk_c[1]*dlk_c_dx.row(2)) / (lk_c[2]*lk_c[2]);
     H.submat(2*ii, 0, 2*ii+1, 11) = H_i;
   }
 
@@ -138,7 +137,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   using namespace arma;
 
   Hx = zeros(3,12);
-  colvec x = state->getArmaData();
+  colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
   double z1 = x[0]; 
   double z2 = x[1]; 
   double z3 = x[2]; 
@@ -152,9 +151,9 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   double z11 = x[10]; 
   double z12 = x[11]; 
 
-  Hx.row(0) << 0, 0, -(z10^2*sin(z3) + z11^2*sin(z3) + z9*z10*cos(z3))/(z9^2 + z10^2 + z11^2), 0, 0, 0, 0, 0,  -(z10^3*sin(z3) + 2*z9*z10^2*cos(z3) + 2*z9*z11^2*cos(z3) - z9^2*z10*sin(z3) + z10*z11^2*sin(z3))/(z9^2 + z10^2 + z11^2)^2,  -(z9*(z9^2*sin(z3) - z10^2*sin(z3) + z11^2*sin(z3) - 2*z9*z10*cos(z3)))/(z9^2 + z10^2 + z11^2)^2, (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/(z9^2 + z10^2 + z11^2)^2, 0;
-  Hx.row(1) << 0, 0, -(z11*cos(z3))/(z9^2 + z10^2 + z11^2)^(1/2), 0, 0, 0, 0, 0, (z9*z11*sin(z3))/(z9^2 + z10^2 + z11^2)^(3/2), (z10*z11*sin(z3))/(z9^2 + z10^2 + z11^2)^(3/2), -(sin(z3)*(z9^2 + z10^2))/(z9^2 + z10^2 + z11^2)^(3/2), 0;
-  Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, (z10^2 + z11^2)/(z9^2 + z10^2 + z11^2)^(3/2), -(z9*z10)/(z9^2 + z10^2 + z11^2)^(3/2), -(z9*z11)/(z9^2 + z10^2 + z11^2)^(3/2), 0;
+  // Hx.row(0) << 0, 0, -(pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0,  -(pow(z10,3)*sin(z3) + 2*z9*pow(z10,2)*cos(z3) + 2*z9*pow(z11,2)*cos(z3) - pow(z9,2)*z10*sin(z3) + z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(z9*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0;
+  // Hx.row(1) << 0, 0, -(z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0, 0, 0, 0, 0, (z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(sin(z3)*(z9^2 + z10^2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
+  // Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, (z10^2 + z11^2)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
 }
 
 typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObservationHy(const ompl::base::State *state, arma::mat& Hx) {
@@ -162,7 +161,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   using namespace arma;
 
   Hx = zeros(3,12);
-  colvec x = state->getArmaData();
+  colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
   double z1 = x[0]; 
   double z2 = x[1]; 
   double z3 = x[2]; 
@@ -176,9 +175,9 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   double z11 = x[10]; 
   double z12 = x[11]; 
 
-  Hx.row(0) << 0, 0, (z9^2*cos(z3) + z11^2*cos(z3) + z9*z10*sin(z3))/(z9^2 + z10^2 + z11^2), 0, 0, 0, 0, 0, -(z10^3*cos(z3) - z9^2*z10*cos(z3) + z10*z11^2*cos(z3) - 2*z9*z10^2*sin(z3))/(z9^2 + z10^2 + z11^2)^2, -(z9^3*cos(z3) - z9*z10^2*cos(z3) + z9*z11^2*cos(z3) + 2*z9^2*z10*sin(z3) + 2*z10*z11^2*sin(z3))/(z9^2 + z10^2 + z11^2)^2, (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/(z9^2 + z10^2 + z11^2)^2, 0; 
-  Hx.row(1) << 0, 0, -(z11*sin(z3))/(z9^2 + z10^2 + z11^2)^(1/2), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/(z9^2 + z10^2 + z11^2)^(3/2), -(z10*z11*cos(z3))/(z9^2 + z10^2 + z11^2)^(3/2), (cos(z3)*(z9^2 + z10^2))/(z9^2 + z10^2 + z11^2)^(3/2), 0;
-  Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, -(z9*z10)/(z9^2 + z10^2 + z11^2)^(3/2), (z9^2 + z11^2)/(z9^2 + z10^2 + z11^2)^(3/2), -(z10*z11)/(z9^2 + z10^2 + z11^2)^(3/2), 0;
+  // Hx.row(0) << 0, 0, (pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, -(pow(z10,3)*cos(z3) - pow(z9,2)*z10*cos(z3) + z10*pow(z11,2)*cos(z3) - 2*z9*pow(z10,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), -(pow(z9,3)*cos(z3) - z9*pow(z10,2)*cos(z3) + z9*pow(z11,2)*cos(z3) + 2*pow(z9,2)*z10*sin(z3) + 2*z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/pow(z9^2 + z10^2 + z11^2,2), 0; 
+  // Hx.row(1) << 0, 0, -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (cos(z3)*(z9^2 + z10^2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
+  // Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z9^2 + z11^2)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
 }
 
 typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObservationHz(const ompl::base::State *state, arma::mat& Hx) {
@@ -186,7 +185,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   using namespace arma;
 
   Hx = zeros(3,12);
-  colvec x = state->getArmaData();
+  colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
   double z1 = x[0]; 
   double z2 = x[1]; 
   double z3 = x[2]; 
@@ -200,9 +199,9 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   double z11 = x[10]; 
   double z12 = x[11]; 
 
-  Hx.row(0) << 0, 0, -(z11*(z10*cos(z3) - z9*sin(z3)))/(z9^2 + z10^2 + z11^2), 0, 0, 0, 0, 0, (z11*(z9^2*cos(z3) - z10^2*cos(z3) - z11^2*cos(z3) + 2*z9*z10*sin(z3)))/(z9^2 + z10^2 + z11^2)^2, -(z11*(z9^2*sin(z3) - z10^2*sin(z3) + z11^2*sin(z3) - 2*z9*z10*cos(z3)))/(z9^2 + z10^2 + z11^2)^2,  -((z9*cos(z3) + z10*sin(z3))*(z9^2 + z10^2 - z11^2))/(z9^2 + z10^2 + z11^2)^2, 0;
-  Hx.row(1) << 0, 0, (z9*cos(z3) + z10*sin(z3))/(z9^2 + z10^2 + z11^2)^(1/2), 0, 0, 0, 0, 0, (z10^2*sin(z3) + z11^2*sin(z3) + z9*z10*cos(z3))/(z9^2 + z10^2 + z11^2)^(3/2), -(z9^2*cos(z3) + z11^2*cos(z3) + z9*z10*sin(z3))/(z9^2 + z10^2 + z11^2)^(3/2), (z11*(z10*cos(z3) - z9*sin(z3)))/(z9^2 + z10^2 + z11^2)^(3/2), 0;
-  Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, -(z9*z11)/(z9^2 + z10^2 + z11^2)^(3/2), -(z10*z11)/(z9^2 + z10^2 + z11^2)^(3/2), (z9^2 + z10^2)/(z9^2 + z10^2 + z11^2)^(3/2), 0;
+  // Hx.row(0) << 0, 0, -(z11*(z10*cos(z3) - z9*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) - pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11),2), -(z11*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2),  -((z9*cos(z3) + z10*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow((pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0;
+  // Hx.row(1) << 0, 0, (z9*cos(z3) + z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0, 0, 0, 0, 0, (pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
+  // Hx.row(2) << 0, 0, 0, 0, 0, 0, 0, 0, -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0;
 }
 
 typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getNoiseJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z) {

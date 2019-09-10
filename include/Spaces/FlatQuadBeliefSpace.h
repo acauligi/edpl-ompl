@@ -40,6 +40,7 @@
 // OMPL includes
 #include "ompl/base/spaces/SE2StateSpace.h"
 #include "ompl/base/spaces/SE3StateSpace.h"
+#include "ompl/base/spaces/RealVectorStateSpace.h"
 
 //other includes
 #include <boost/math/constants/constants.hpp>
@@ -84,10 +85,10 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
            */
       arma::colvec getVelocity(void) const {
         arma::colvec vel(4);
-        vel[0] = <RealVectorStateSpace::StateType>(2)->values[0];
-        vel[1] = <RealVectorStateSpace::StateType>(2)->values[1];
-        vel[2] = <RealVectorStateSpace::StateType>(2)->values[2];
-        vel[3] = <RealVectorStateSpace::StateType>(2)->values[3];
+        vel[0] = as<RealVectorStateSpace::StateType>(2)->values[0];
+        vel[1] = as<RealVectorStateSpace::StateType>(2)->values[1];
+        vel[2] = as<RealVectorStateSpace::StateType>(2)->values[2];
+        vel[3] = as<RealVectorStateSpace::StateType>(2)->values[3];
         return vel; 
       }
       
@@ -95,10 +96,10 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
            */
       arma::colvec getAcceleration(void) const {
         arma::colvec acc(4);
-        acc[0] = <RealVectorStateSpace::StateType>(3)->values[0];
-        acc[1] = <RealVectorStateSpace::StateType>(3)->values[1];
-        acc[2] = <RealVectorStateSpace::StateType>(3)->values[2];
-        acc[3] = <RealVectorStateSpace::StateType>(3)->values[3];
+        acc[0] = as<RealVectorStateSpace::StateType>(3)->values[0];
+        acc[1] = as<RealVectorStateSpace::StateType>(3)->values[1];
+        acc[2] = as<RealVectorStateSpace::StateType>(3)->values[2];
+        acc[3] = as<RealVectorStateSpace::StateType>(3)->values[3];
         return acc; 
       }
 
@@ -246,7 +247,7 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
 
   void printBeliefState(const State *state);
 
-  arma::mat flatToDCM();
+  arma::mat flatToDCM(const State *state); 
 
 };
 #endif

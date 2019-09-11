@@ -78,8 +78,8 @@ public:
 
       // setting the mean and norm weights (used in reachability check)
       // NOTE these values will be overwritten by loadParameters()
-      StateType::covNormWeight_  =  1.0;
-      StateType::meanNormWeight_ =  2.0;
+      StateType::covNormWeight_ =  1.0;
+      StateType::meanNormWeight_=  2.0;
       StateType::reachDist_ =  0.009;    // distance threshold for position, orientation, and covariance
       StateType::reachDistPos_ = 0.1;    // distance threshold for position [m]
       StateType::reachDistOri_ = 10.0/180.0*boost::math::constants::pi<double>(); // distance threshold for orientation [rad]
@@ -145,16 +145,16 @@ public:
       path_to_setup_file_  = path;       
     }
 
-    void setStartState(const double X, const double Y) {
+    void setStartState(const double X, const double Y, const double Z) {
       ompl::base::State *temp = siF_->allocState();
-      temp->as<StateType>()->setXY(X,Y);
+      temp->as<StateType>()->setXYZ(X,Y,Z);
       siF_->copyState(start_, temp);
       siF_->freeState(temp);
     }
 
-    void addGoalState(const double X, const double Y) {
+    void addGoalState(const double X, const double Y, const double Z) {
       ompl::base::State *temp = siF_->allocState();
-      temp->as<StateType>()->setXY(X,Y);
+      temp->as<StateType>()->setXYZ(X,Y,Z);
       goal_list_.push_back(temp);
     }
 
@@ -170,7 +170,7 @@ public:
           throw ompl::Exception("Robot/Environment mesh files not setup!");
         }
 
-        ss_->as<SE2BeliefSpace>()->setBounds(inferEnvironmentBounds());
+        ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
 
         // Create an FCL state validity checker and assign to space information
         const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
@@ -333,14 +333,17 @@ protected:
         itemElement = child->ToElement();
         assert( itemElement );
 
-        double goalX = 0 , goalY = 0, goalTheta = 0;
+        double goalX = 0 , goalY = 0, goalZ = 0, goalTheta = 0;
 
         itemElement->QueryDoubleAttribute("x", &goalX);
         itemElement->QueryDoubleAttribute("y", &goalY);
+        itemElement->QueryDoubleAttribute("z", &goalZ);
 
-        std::cout<<"Loaded Goal Pose X: "<<goalX<<" Y: "<<goalY<<std::endl;
-
-        addGoalState(goalX, goalY);
+        std::cout<<"Loaded Goal Pose X: "<< goalX << 
+          " Y: "<< goalY  << 
+          " Z: "<< goalZ <<
+          std::endl;
+        addGoalState(goalX, goalY, goalZ);
       }
     }
 
@@ -437,10 +440,10 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    std::string environmentFilePath;
-    itemElement->QueryStringAttribute("environmentFile", &environmentFilePath);
-    path_to_environment_mesh_ = environmentFilePath;
-    this->addEnvironmentMesh(environmentFilePath);
+    std::string environment_file_path;
+    itemElement->QueryStringAttribute("environmentFile", &environment_file_path);
+    path_to_environment_mesh_ = environment_file_path;
+    this->addEnvironmentMesh(environment_file_path);
 
     // Read the robot mesh file
     child  = node->FirstChild("Robot");
@@ -449,10 +452,9 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    std::string robotFilePath;
-    itemElement->QueryStringAttribute("robotFile", &robotFilePath);
-
-    this->setRobotMesh(robotFilePath);
+    std::string robot_file_path;
+    itemElement->QueryStringAttribute("robotFile", &robot_file_path);
+    this->setRobotMesh(robot_file_path);
    
     // Read the roadmap filename
     child  = node->FirstChild("RoadMap");
@@ -460,9 +462,9 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    std::string tempPathStr;
-    itemElement->QueryStringAttribute("roadmapFile", &tempPathStr);
-    path_to_road_map_file_ = tempPathStr;
+    std::string temp_path_str;
+    itemElement->QueryStringAttribute("roadmapFile", &temp_path_str);
+    path_to_road_map_file_ = temp_path_str;
 
     int usermap = 0;
     itemElement->QueryIntAttribute("useRoadMap", &usermap);
@@ -475,29 +477,12 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    double startX = 0,startY = 0;
+    double startX = 0,startY = 0, startZ = 0;
 
     itemElement->QueryDoubleAttribute("x", &startX);
     itemElement->QueryDoubleAttribute("y", &startY);
-
-    setStartState(startX, startY);
-
-    // Read the Goal Pose
-    /*
-    child  = node->FirstChild("GoalPose");
-    assert( child );
-
-    itemElement = child->ToElement();
-    assert( itemElement );
-
-    double goalX = 0 , goalY = 0, goalTheta = 0;
-
-    itemElement->QueryDoubleAttribute("x", &goalX);
-    itemElement->QueryDoubleAttribute("y", &goalY);
-    itemElement->QueryDoubleAttribute("theta", &goalTheta);
-
-    setGoalState(goalX, goalY, goalTheta);
-    */
+    itemElement->QueryDoubleAttribute("z", &startZ);
+    setStartState(startX, startY, startZ);
 
     // read planning time
     child  = node->FirstChild("PlanningTime");
@@ -507,9 +492,7 @@ protected:
     assert( itemElement );
 
     double time = 0;
-
     itemElement->QueryDoubleAttribute("maxTime", &time) ;
-
     planning_time_ = time;
 
     // read planning time
@@ -519,13 +502,13 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    int minNodeNum = 0;
-    itemElement->QueryIntAttribute("minNodes", &minNodeNum) ;
-    min_nodes_ = minNodeNum;
+    int min_node_num = 0;
+    itemElement->QueryIntAttribute("minNodes", &min_node_num) ;
+    min_nodes_ = min_node_num;
 
-    int maxNodeNum = 0;
-    itemElement->QueryIntAttribute("maxNodes", &maxNodeNum) ;
-    max_nodes_ = maxNodeNum;
+    int max_node_num = 0;
+    itemElement->QueryIntAttribute("maxNodes", &max_node_num) ;
+    max_nodes_ = max_node_num;
 
     // Read Kidnapped State
     // Read the Goal Pose
@@ -535,20 +518,19 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    double kX = 0 , kY = 0;
-
+    double kX = 0 , kY = 0, kZ = 0;
     itemElement->QueryDoubleAttribute("x", &kX);
     itemElement->QueryDoubleAttribute("y", &kY);
+    itemElement->QueryDoubleAttribute("z", &kZ);
 
     kidnapped_state_ = siF_->allocState();
-
-    kidnapped_state_->as<SE2BeliefSpace::StateType>()->setXY(kX, kY);
+    kidnapped_state_->as<FlatQuadBeliefSpace::StateType>()->setXYZ(kX, kY, kZ);
 
     loadGoals();
 
     OMPL_INFORM("Problem configuration is");
-    std::cout<<"Path to environment mesh: "<<environmentFilePath<<std::endl;
-    std::cout<<"Path to robot mesh: "<<robotFilePath<<std::endl;
+    std::cout<<"Path to environment mesh: "<<environment_file_path<<std::endl;
+    std::cout<<"Path to robot mesh: "<<robot_file_path<<std::endl;
     std::cout<<"Path to Roadmap File: "<<path_to_road_map_file_<<std::endl;
     std::cout<<"Start Pose X: "<<startX<<" Y: "<<startY<<std::endl;
     std::cout<<"Planning Time: "<<planning_time_<<" seconds"<<std::endl;

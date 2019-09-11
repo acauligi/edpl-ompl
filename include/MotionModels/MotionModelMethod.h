@@ -39,6 +39,7 @@
 
 #include <armadillo>
 #include "Spaces/SE2BeliefSpace.h"
+#include "Spaces/FlatQuadBeliefSpace.h"
 #include <ompl/control/Control.h>
 #include <ompl/control/spaces/RealVectorControlSpace.h>
 #include <ompl/control/SpaceInformation.h>

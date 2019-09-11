@@ -39,6 +39,9 @@
 double FlatQuadBeliefSpace::StateType::meanNormWeight_  = -1;
 double FlatQuadBeliefSpace::StateType::covNormWeight_   = -1;
 double FlatQuadBeliefSpace::StateType::reachDist_   = -1;
+double FlatQuadBeliefSpace::StateType::reachDistPos_   = -1;
+double FlatQuadBeliefSpace::StateType::reachDistOri_   = -1;
+double FlatQuadBeliefSpace::StateType::reachDistCov_   = -1;
 arma::colvec FlatQuadBeliefSpace::StateType::normWeights_ = arma::zeros<arma::colvec>(12);
 
 bool FlatQuadBeliefSpace::StateType::isReached(ompl::base::State *state, bool relaxedConstraint) const {
@@ -52,29 +55,237 @@ bool FlatQuadBeliefSpace::StateType::isReached(ompl::base::State *state, bool re
     stateDiff[2] =  stateDiff[2] + 2*boost::math::constants::pi<double>() ;
   }
 
-  arma::mat covDiff = this->getCovariance() -  state->as<FlatQuadBeliefSpace::StateType>()->getCovariance();
-
-  arma::colvec covDiffDiag = covDiff.diag();
+  arma::mat cov_diff = this->getCovariance() -  state->as<FlatQuadBeliefSpace::StateType>()->getCovariance();
+  arma::colvec cov_diff_diag = cov_diff.diag();
 
   // Need weighted supNorm of difference in means
-  double meanNorm = arma::norm(stateDiff % normWeights_, "inf");
+  double mean_norm = arma::norm(stateDiff % normWeights_, "inf");
 
-  double covDiagNorm = arma::norm(sqrt(abs(covDiffDiag)) % normWeights_, "inf");
+  double cov_diag_norm = arma::norm(sqrt(abs(cov_diff_diag)) % normWeights_, "inf");
 
-  double norm2 =  std::max(meanNorm*meanNormWeight_, covDiagNorm*covNormWeight_) ;
+  double norm2 =  std::max(mean_norm*meanNormWeight_, cov_diag_norm *covNormWeight_) ;
 
-  double reachConstraint  = reachDist_;
+  // TODO(acauligi): use reachDistCov_, reachDistPos_, reachDistOri_ to define reach_constraint?
+  double reach_constraint  = reachDist_;
 
   if(relaxedConstraint) {
-    reachConstraint *= 4;
+    reach_constraint *= 4;
   }
 
-  if(norm2 <= reachConstraint) {
+  if(norm2 <= reach_constraint) {
     return true;
   }
 
   return false;
 
+}
+
+bool FlatQuadBeliefSpace::StateType::isReachedWithinNEpsilon(const ompl::base::State *state, const double nEpsilon) const {
+  // check if position and orientation errors are less than thresholds
+  if(!this->isReachedPose(state, nEpsilon)) {
+    return false;
+  }
+
+  // check if covariance error is less than a threshold
+  if(!this->isReachedCov(state, nEpsilon)) {
+    return false;
+  }
+  // otherwise, the given state is considered to have reached this state
+  return true;
+}
+
+bool FlatQuadBeliefSpace::StateType::isReachedPose(const ompl::base::State *state, const double nEpsilon) const {
+  // subtract the two beliefs and get the norm
+  arma::colvec stateDiff = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - this->getArmaData();
+
+  if(stateDiff[2] > boost::math::constants::pi<double>()) {
+    stateDiff[2] = (stateDiff[2] - 2*boost::math::constants::pi<double>());
+  }
+  if(stateDiff[2] < -boost::math::constants::pi<double>()) {
+    stateDiff[2] = stateDiff[2] + 2*boost::math::constants::pi<double>();
+  }
+
+  // compute position and orientation errors
+  double pos_distance_to_goal = arma::norm(stateDiff.subvec(0,2), 2);
+  double ori_distance_to_goal = std::abs(stateDiff[2]);
+
+  // check for position and orientation thresholds
+  if(pos_distance_to_goal > nEpsilon * reachDistPos_) {
+    return false;
+  }
+  if(ori_distance_to_goal > nEpsilon * reachDistOri_) {
+    return false;
+  }
+  return true;
+}
+
+bool FlatQuadBeliefSpace::StateType::isReachedCov(const ompl::base::State *state, const double nEpsilon) const {
+  // subtract the two covariances
+  arma::mat covDiff = state->as<FlatQuadBeliefSpace::StateType>()->getCovariance() - this->getCovariance();
+
+  arma::colvec covDiffDiag = covDiff.diag();
+
+  // NOTE if the given state's covariance is already smaller than this goal state, set the difference to zero
+  for (int i=0; i<covDiffDiag.size(); i++) {
+    if(covDiffDiag[i] < 0.0) {
+      covDiffDiag[i] = 0.0;
+    }
+  }
+
+  // compute covariance error
+  //double cov_distance_to_goal = arma::norm(sqrt(abs(covDiffDiag)) % normWeights_, "inf");    // deprecated
+  double cov_distance_to_goal = arma::norm(abs(covDiffDiag) % normWeights_, 2);
+
+  // check for position and orientation thresholds
+  if(cov_distance_to_goal > nEpsilon * reachDistCov_) {
+    return false;
+  }
+  return true;
+}
+
+bool FlatQuadBeliefSpace::StateType::sampleBorderBeliefState(ompl::base::State* borderBelief) const {
+  // get the mean of the center belief state
+  arma::colvec center_mean = this->getArmaData();
+
+  // compute the offset for from epsilon-relaxation parameters for isReached() condition
+  // 1) consider mean offset
+//     arma::colvec pos_rand(2, arma::fill::randu);  // range: [ 0.0, 1.0]
+//     pos_rand -= 0.5;                              // range: [-0.5, 0.5]
+//     double ori_rand_dir = (std::rand()%2>0) ? +1.0 : -1.0;
+//     arma::colvec pos_offset = reachDistPos_ * pos_rand / arma::norm(pos_rand, 2);
+//     arma::colvec ori_offset = reachDistOri_ * arma::colvec({ori_rand_dir});
+  // 2) ignore mean offset
+  arma::colvec pos_offset = {0, 0, 0};
+  arma::colvec ori_offset = {0};
+
+  // set the new state property
+  borderBelief->as<StateType>()->setX(center_mean[0] + pos_offset[0]);
+  borderBelief->as<StateType>()->setY(center_mean[1] + pos_offset[1]);
+  borderBelief->as<StateType>()->setZ(center_mean[2] + pos_offset[2]);
+  borderBelief->as<StateType>()->setYaw(center_mean[3] + ori_offset[0]);
+
+  // get the covariance of the center belief state
+  arma::mat center_cov = this->getCovariance();
+
+  // compute the offset for from epsilon-relaxation parameters for isReached() condition
+  // 1) random relaxation
+  // NOTE this can lead to high variance in edge cost computation with not-too-tight reachDeisCov_ value and a limited number of particles
+//     arma::colvec cov_rand(3, arma::fill::randu);  // range: [ 0.0, 1.0]    // NOTE consider border belief's covariance larger, but not less, than the center belief's covariance only
+  // 2) uniform relaxation
+
+  // same proportional relaxation for each coordinate; will be weighted according to normWeights_
+  arma::colvec cov_rand = {1, 1, 1,
+                          1, 1, 1,
+                          1, 1, 1,
+                          1, 1, 1};
+
+  arma::colvec cov_offset = reachDistCov_ * cov_rand / arma::norm(cov_rand % normWeights_, 2);
+
+
+  // set the new state property
+  arma::mat border_cov = center_cov;
+  for (int ii=0; ii<cov_offset.size(); ii++) {
+    border_cov(ii,ii) += cov_offset[ii];
+  }
+  borderBelief->as<StateType>()->setCovariance(border_cov);
+
+  return true;
+}
+
+bool FlatQuadBeliefSpace::StateType::sampleTrueStateFromBelief(ompl::base::State* sampState, const double nSigma) const {
+  // Cholesky decomposition such that covariance_ = transform * transform.t()
+  arma::mat transform;
+  if(!arma::chol(transform, covariance_, "lower")) {
+    OMPL_ERROR("Failed to decompose the covariance matrix for random sampling!");
+    return false;
+  }
+
+  // draw a random sample from standard normal distribution
+  arma::colvec randvec(4, arma::fill::randn);
+
+  // transform this random sample for this Gaussian distribution
+  arma::colvec mean = getArmaData();
+  arma::colvec randvec_transformed = mean + nSigma * transform * randvec;
+
+  // set the new state property
+  sampState->as<StateType>()->setX(randvec_transformed[0]);
+  sampState->as<StateType>()->setY(randvec_transformed[1]);
+  sampState->as<StateType>()->setZ(randvec_transformed[2]);
+  sampState->as<StateType>()->setYaw(randvec_transformed[3]);
+  sampState->as<StateType>()->setCovariance(covariance_);    // REVIEW set the covariance as the same with this state
+
+  return true;
+}
+
+double FlatQuadBeliefSpace::StateType::getStateDistanceTo(const ompl::base::State *state) const {
+  // subtract the two beliefs and get the norm
+  arma::colvec stateDiff = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - this->getArmaData();
+
+  if(stateDiff[3] > boost::math::constants::pi<double>()) {
+    stateDiff[3] = (stateDiff[3] - 2*boost::math::constants::pi<double>());
+  }
+  if(stateDiff[3] < -boost::math::constants::pi<double>()) {
+    stateDiff[3] = stateDiff[3] + 2*boost::math::constants::pi<double>();
+  }
+
+  // compute weighted sum of position and orientation errors
+  double state_distance = arma::norm(stateDiff % normWeights_, 2);
+
+  return state_distance;
+}
+
+double FlatQuadBeliefSpace::StateType::getPosDistanceTo(const ompl::base::State *state) const {
+  // subtract the two beliefs and get the norm
+  arma::colvec stateDiff = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - this->getArmaData();
+
+  // compute position error
+  return arma::norm(stateDiff.subvec(0,2), 2);
+}
+
+double FlatQuadBeliefSpace::StateType::getOriDistanceTo(const ompl::base::State *state) const {
+  // subtract the two beliefs and get the norm
+  arma::colvec stateDiff = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - this->getArmaData();
+
+  if(stateDiff[3] > boost::math::constants::pi<double>()) {
+    stateDiff[3] = (stateDiff[3] - 2*boost::math::constants::pi<double>());
+  }
+  if(stateDiff[3] < -boost::math::constants::pi<double>()) {
+    stateDiff[3] = stateDiff[3] + 2*boost::math::constants::pi<double>();
+  }
+
+  // compute orientation error
+  return std::abs(stateDiff[3]);
+}
+
+bool FlatQuadBeliefSpace::StateType::mergeBeliefIntoThis(const ompl::base::State *newBelief) {
+  // NOTE this function should be called before incrementing N(h) by +1
+
+  // retrieve means and covariances
+  arma::mat covThis = this->getCovariance();
+  arma::colvec meanThis = this->getArmaData();
+  arma::mat covNew = newBelief->as<StateType>()->getCovariance();
+  arma::colvec meanNew = newBelief->as<StateType>()->getArmaData();
+
+  // compute natural parameters
+  arma::mat invCovThis = arma::inv(covThis);
+  arma::mat invCovNew = arma::inv(covNew);
+  arma::colvec invMeanThis = invCovThis * meanThis;
+  arma::colvec invMeanNew = invCovNew * meanNew;
+
+  // compute merged parameter values
+  double nVisitThis = this->getThisQVvisit();
+  arma::mat invCovMerged = invCovThis + (invCovNew - invCovThis) / (nVisitThis + 1);
+  arma::colvec invMeanMerged = invMeanThis + (invMeanNew - invMeanThis) / (nVisitThis + 1);
+
+  // convert to cannocial parameters
+  arma::mat covMerged = arma::inv(invCovMerged);
+  arma::colvec meanMerged = covMerged * invMeanMerged;
+
+  // apply the change of belief state
+  this->setCovariance(covMerged);
+  this->setArmaData(meanMerged);
+
+  return true;
 }
 
 

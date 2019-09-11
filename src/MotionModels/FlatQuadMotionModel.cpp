@@ -56,7 +56,7 @@ void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::con
   colvec x = state->as<StateType>()->getArmaData();
   x = this->Ak_*x + this->Bk_*u + this->Gk_*(Un+Wg); 
 
-  result->as<StateType>()->setArmData(x);
+  result->as<StateType>()->setArmaData(x);
 }
 
 

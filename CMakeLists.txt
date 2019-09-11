@@ -93,6 +93,7 @@ add_library (bsp_lib
 	src/MotionModels/OmnidirectionalMotionModel.cpp
 	src/MotionModels/UnicycleMotionModel.cpp
 	src/MotionModels/TwoDPointMotionModel.cpp
+	src/MotionModels/FlatQuadMotionModel.cpp
 	src/MotionModels/UnicycleStatePropagator.cpp
 	src/MotionModels/OmnidirectionalStatePropagator.cpp
 	src/MotionModels/TwoDPointStatePropagator.cpp
@@ -138,10 +139,10 @@ target_link_libraries (bsp_lib
 
 
 # Add the main as executable
-add_executable (bsp-app-demo src/main_firm.cpp)
+add_executable (firmcp-demo src/main_firmcp.cpp)
 
 # make sure libfcl.so is in /usr/local/lib/
-target_link_libraries (bsp-app-demo
+target_link_libraries (firmcp-demo
 	bsp_lib
 	${OMPLAPP_LIBRARY}
 	${OMPLAPPBASE_LIBRARY}
@@ -150,10 +151,10 @@ target_link_libraries (bsp-app-demo
 
 
 # Add the main as executable
-add_executable (firmcp-demo src/main_firmcp.cpp)
+add_executable (bsp-app-demo src/main_firm.cpp)
 
 # make sure libfcl.so is in /usr/local/lib/
-target_link_libraries (firmcp-demo
+target_link_libraries (bsp-app-demo
 	bsp_lib
 	${OMPLAPP_LIBRARY}
 	${OMPLAPPBASE_LIBRARY}

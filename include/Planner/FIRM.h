@@ -87,6 +87,7 @@
 #include "NBM3P.h"
 #include "Spaces/R2BeliefSpace.h"
 #include "Spaces/SE2BeliefSpace.h"
+#include "Spaces/FlatQuadBeliefSpace.h"
 
 namespace ompl
 {
@@ -241,7 +242,7 @@ class FIRM : public ompl::base::Planner
 protected:
 
     /* Note: Set the statetype depending upon your problem.*/  
-    typedef SE2BeliefSpace::StateType StateType;
+    typedef FlatQuadBeliefSpace::StateType StateType;
 
     /** Defining the separated controller types depending on your problem*/
     typedef RHCICreate SeparatedControllerType;

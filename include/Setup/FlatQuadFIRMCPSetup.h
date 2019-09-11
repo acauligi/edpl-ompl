@@ -40,10 +40,9 @@
 #include "Setup/FlatQuadSetup.h"
 #include "Planner/FIRMCP.h"
 
-class FlatQuadFIRMCPSetup : public TwoDPointRobotSetup {
+class FlatQuadFIRMCPSetup : public FlatQuadSetup {
 public:
-  FlatQuadFIRMCPSetup() : TwoDPointRobotSetup()
-  {
+  FlatQuadFIRMCPSetup() : FlatQuadSetup() {
   }
 
   virtual ~FlatQuadFIRMCPSetup(void) {
@@ -53,7 +52,7 @@ public:
     if(!setup_) {
       this->loadParameters();
 
-      if(pathToSetupFile_.length() == 0) {
+      if(path_to_setup_file_.length() == 0) {
         throw ompl::Exception("Path to setup file not set!");
       }
 
@@ -61,48 +60,42 @@ public:
         throw ompl::Exception("Robot/Environment mesh files not setup!");
       }
 
-      ss_->as<SE2BeliefSpace>()->setBounds(inferEnvironmentBounds());
+      ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
 
       // Create an FCL state validity checker and assign to space information
       const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
       siF_->setStateValidityChecker(fclSVC);
 
       // provide the observation model to the space
-      ObservationModelMethod::ObservationModelPointer om(new LandmarkObservationModel(siF_, pathToSetupFile_.c_str()));
+      ObservationModelMethod::ObservationModelPointer om(new LandmarkObservationModel(siF_, path_to_setup_file_.c_str()));
       siF_->setObservationModel(om);
 
       // Provide the motion model to the space
       // TODO(acauligi): can FlatQuadMotionModel be used in collision checking when not in SE(2)? 
-      MotionModelMethod::MotionModelPointer mm(new FlatQuadMotionModel(siF_, pathToSetupFile_.c_str()));            
+      MotionModelMethod::MotionModelPointer mm(new FlatQuadMotionModel(siF_, path_to_setup_file_.c_str()));            
       siF_->setMotionModel(mm);
 
       ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new FlatQuadStatePropagator(siF_)));
-      statePropagator_ = prop;
-      siF_->setStatePropagator(statePropagator_);
+      state_propagator_ = prop;
+      siF_->setStatePropagator(state_propagator_);
       siF_->setPropagationStepSize(0.1); // this is the duration that a control is applied
       siF_->setStateValidityCheckingResolution(0.005);
       siF_->setMinMaxControlDuration(1,100);
 
-      if(!start_ || goalList_.size() == 0) {
+      if(!start_ || goal_list_.size() == 0) {
         throw ompl::Exception("Start/Goal not set");
       }
 
-      pdef_->setStartAndGoalStates(start_, goalList_[0], 1.0);
+      pdef_->setStartAndGoalStates(start_, goal_list_[0], 1.0);
 
+      // Setup planner
       ompl::base::PlannerPtr plnr(new FIRMCP(siF_, false));
-
       planner_ = plnr;
-
       planner_->setProblemDefinition(pdef_);
-
-      planner_->as<FIRMCP>()->setMinFIRMNodes(minNodes_);
-
-      planner_->as<FIRMCP>()->setMaxFIRMNodes(maxNodes_);
-
-      planner_->as<FIRMCP>()->setKidnappedState(kidnappedState_);
-
-      planner_->as<FIRMCP>()->loadParametersFromFile(pathToSetupFile_.c_str());
-
+      planner_->as<FIRMCP>()->setMinFIRMNodes(min_nodes_);
+      planner_->as<FIRMCP>()->setMaxFIRMNodes(max_nodes_);
+      planner_->as<FIRMCP>()->setKidnappedState(kidnapped_state_);
+      planner_->as<FIRMCP>()->loadParametersFromFile(path_to_setup_file_.c_str());
       planner_->setup();            
 
       // Setup visualizer because it is needed while loading roadmap and visualizing it
@@ -110,7 +103,7 @@ public:
 
       Visualizer::updateRenderer(*dynamic_cast<const ompl::app::RigidBodyGeometry*>(this), this->getGeometricStateExtractor());
 
-      if (useSavedRoadMap_ == 1) planner_->as<FIRMCP>()->loadRoadMapFromFile(pathToRoadMapFile_.c_str());
+      if (use_saved_road_map_ == 1) planner_->as<FIRMCP>()->loadRoadMapFromFile(path_to_road_map_file_.c_str());
 
       setup_ = true;
     }
@@ -142,10 +135,10 @@ public:
   }
 
   virtual void updateEnvironmentMesh(int obindx = 0) {
-    if(dynamicObstacles_) {
+    if(dynamic_obstacles_) {
       // Set environment to new mesh with some dynamic / additional obstacles
-      if(!this->setEnvironmentMesh(dynObstList_[obindx])) {
-        OMPL_ERROR("Couldn't set mesh with path: %s",dynObstList_[obindx]);
+      if(!this->setEnvironmentMesh(dyn_obst_list_[obindx])) {
+        OMPL_ERROR("Couldn't set mesh with path: %s",dyn_obst_list_[obindx]);
       }
 
       const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_2D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);

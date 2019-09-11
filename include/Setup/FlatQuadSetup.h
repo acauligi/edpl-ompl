@@ -53,9 +53,8 @@ class FlatQuadSetup : public ompl::app::RigidBodyGeometry {
     typedef FlatQuadBeliefSpace::StateType StateType;
 
 public:
-
-    FlatQuadSetup() : ompl::app::RigidBodyGeometry(ompl::app::Motion_2D, ompl::app::FCL),
-    ss_(ompl::base::StateSpacePtr(new SE2BeliefSpace())) {
+    FlatQuadSetup() : ompl::app::RigidBodyGeometry(ompl::app::Motion_3D, ompl::app::FCL),
+    ss_(ompl::base::StateSpacePtr(new FlatQuadBeliefSpace())) {
       // set static variables
       // Not in use as of now
       Controller<FiniteTimeLQR, ExtendedKF>::setNodeReachedAngle(10); // degrees
@@ -66,50 +65,53 @@ public:
       // [2] NodeController (typedef in include/Planner/FIRM.h)
       Controller<StationaryLQR, LinearizedKF>::setNodeReachedAngle(10); // degrees
       Controller<StationaryLQR, LinearizedKF>::setNodeReachedDistance(0.1);// meters
-//         Controller<StationaryLQR, LinearizedKF>::setMaxTries(30);
       Controller<StationaryLQR, LinearizedKF>::setMaxTries(300);
-//         Controller<StationaryLQR, LinearizedKF>::setMaxTrajectoryDeviation(0.5); // meters
-//         Controller<StationaryLQR, LinearizedKF>::setMaxTrajectoryDeviation(2.25); // meters
       Controller<StationaryLQR, LinearizedKF>::setMaxTrajectoryDeviation(2.50); // meters
 
       // [1] EdgeController (typedef in include/Planner/FIRM.h)
       RHCICreate::setControlQueueSize(5);
       RHCICreate::setTurnOnlyDistance(0.01);
       Controller<RHCICreate, ExtendedKF>::setNodeReachedAngle(10.0); // degrees
-//         Controller<RHCICreate, ExtendedKF>::setNodeReachedDistance(0.2);// meters
       Controller<RHCICreate, ExtendedKF>::setNodeReachedDistance(0.1);// meters
       Controller<RHCICreate, ExtendedKF>::setMaxTries(30);
-//         Controller<RHCICreate, ExtendedKF>::setMaxTrajectoryDeviation(0.5); // meters
       Controller<RHCICreate, ExtendedKF>::setMaxTrajectoryDeviation(1.0); // meters
 
       // setting the mean and norm weights (used in reachability check)
       // NOTE these values will be overwritten by loadParameters()
       StateType::covNormWeight_  =  1.0;
       StateType::meanNormWeight_ =  2.0;
-      StateType::reachDist_ =  0.009;    // 0.015     // distance threshold for position, orientation, and covariance
-      StateType::reachDistPos_ = 0.1;    // meters    // distance threshold for position
-      StateType::reachDistOri_ = 10.0/180.0*boost::math::constants::pi<double>();    // radian    // distance threshold for orientation
+      StateType::reachDist_ =  0.009;    // distance threshold for position, orientation, and covariance
+      StateType::reachDistPos_ = 0.1;    // distance threshold for position [m]
+      StateType::reachDistOri_ = 10.0/180.0*boost::math::constants::pi<double>(); // distance threshold for orientation [rad]
       StateType::reachDistCov_ = 0.0004;    // distance threshold for covariance
 
       // set the state component norm weights
-      arma::colvec normWeights(3);
-      normWeights(0) = 2.0/std::sqrt(9);
-      normWeights(1) = 2.0/std::sqrt(9);
-      normWeights(2) = 1.0/std::sqrt(9);
+      arma::colvec normWeights(12);
+      normWeights(0)  = 2.0/std::sqrt(9);
+      normWeights(1)  = 2.0/std::sqrt(9);
+      normWeights(2)  = 2.0/std::sqrt(9);
+      normWeights(3)  = 1.0/std::sqrt(9);
+      normWeights(4)  = 1.0/std::sqrt(9);
+      normWeights(5)  = 1.0/std::sqrt(9);
+      normWeights(6)  = 1.0/std::sqrt(9);
+      normWeights(7)  = 1.0/std::sqrt(9);
+      normWeights(8)  = 1.0/std::sqrt(9);
+      normWeights(9)  = 1.0/std::sqrt(9);
+      normWeights(10) = 1.0/std::sqrt(9);
+      normWeights(11) = 1.0/std::sqrt(9);
       StateType::normWeights_ = normWeights;
 
       // The bounds should be inferred from the geometry files,
       // there is a function in Apputils to do this, so use that.        
-      ompl::base::RealVectorBounds bounds(2);
-      
-      // set X & Y bound
-      bounds.setLow(0.0);
-      bounds.setHigh(20.0);
+      ompl::base::RealVectorBounds bounds(12);
+      bounds.setLow(0, 0.);     bounds.setHigh(0, 20);
+      bounds.setLow(1, 0.);     bounds.setHigh(1, 20);
+      bounds.setLow(2, 0.);     bounds.setHigh(2, 20);
 
-      ss_->as<SE2BeliefSpace>()->setBounds(bounds);
+      ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 
       //Construct the control space
-      ompl::control::ControlSpacePtr controlspace( new ompl::control::RealVectorControlSpace(ss_,3) );
+      ompl::control::ControlSpacePtr controlspace( new ompl::control::RealVectorControlSpace(ss_,4) );
 
       cs_ = controlspace;
 
@@ -127,9 +129,9 @@ public:
 
       setup_ = false;
 
-      dynamicObstacles_ = false;
+      dynamic_obstacles_ = false;
 
-      plannerMethod_ = 0; // by default we use FIRM
+      planner_method_ = 0; // by default we use FIRM
     }
 
     virtual ~FlatQuadSetup(void) {
@@ -140,7 +142,7 @@ public:
     }
 
     void setPathToSetupFile(const std::string &path) {
-      pathToSetupFile_  = path;       
+      path_to_setup_file_  = path;       
     }
 
     void setStartState(const double X, const double Y) {
@@ -153,74 +155,66 @@ public:
     void addGoalState(const double X, const double Y) {
       ompl::base::State *temp = siF_->allocState();
       temp->as<StateType>()->setXY(X,Y);
-      goalList_.push_back(temp);
+      goal_list_.push_back(temp);
     }
-
 
     virtual void setup() {
       if(!setup_) {
-          this->loadParameters();
+        this->loadParameters();
 
-          if(pathToSetupFile_.length() == 0) {
-            throw ompl::Exception("Path to setup file not set!");
-          }
+        if(path_to_setup_file_.length() == 0) {
+          throw ompl::Exception("Path to setup file not set!");
+        }
 
-          if(!hasEnvironment() || !hasRobot()) {
-            throw ompl::Exception("Robot/Environment mesh files not setup!");
-          }
+        if(!hasEnvironment() || !hasRobot()) {
+          throw ompl::Exception("Robot/Environment mesh files not setup!");
+        }
 
-          ss_->as<SE2BeliefSpace>()->setBounds(inferEnvironmentBounds());
+        ss_->as<SE2BeliefSpace>()->setBounds(inferEnvironmentBounds());
 
-          // Create an FCL state validity checker and assign to space information
-          const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
-          siF_->setStateValidityChecker(fclSVC);
+        // Create an FCL state validity checker and assign to space information
+        const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
+        siF_->setStateValidityChecker(fclSVC);
 
-          // provide the observation model to the space
-          ObservationModelMethod::ObservationModelPointer om(new HeadingBeaconObservationModel(siF_, pathToSetupFile_.c_str()));
-          siF_->setObservationModel(om);
+        // provide the observation model to the space
+        ObservationModelMethod::ObservationModelPointer om(new HeadingBeaconObservationModel(siF_, path_to_setup_file_.c_str()));
+        siF_->setObservationModel(om);
 
-          // Provide the motion model to the space
-          // We use the omnidirectional model because collision checking requires SE2
-          MotionModelMethod::MotionModelPointer mm(new OmnidirectionalMotionModel(siF_, pathToSetupFile_.c_str()));            
-          siF_->setMotionModel(mm);
+        // Provide the motion model to the space
+        // We use the omnidirectional model because collision checking requires SE2
+        MotionModelMethod::MotionModelPointer mm(new OmnidirectionalMotionModel(siF_, path_to_setup_file_.c_str()));            
+        siF_->setMotionModel(mm);
 
-          ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new OmnidirectionalStatePropagator(siF_)));
-          statePropagator_ = prop;
-          siF_->setStatePropagator(statePropagator_);
-          siF_->setPropagationStepSize(0.1); // this is the duration that a control is applied
-          siF_->setStateValidityCheckingResolution(0.005);
-          siF_->setMinMaxControlDuration(1,100);
+        ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new OmnidirectionalStatePropagator(siF_)));
+        state_propagator_ = prop;
+        siF_->setStatePropagator(state_propagator_);
+        siF_->setPropagationStepSize(0.1); // this is the duration that a control is applied
+        siF_->setStateValidityCheckingResolution(0.005);
+        siF_->setMinMaxControlDuration(1,100);
 
-          if(!start_ || goalList_.size() == 0) {
-            throw ompl::Exception("Start/Goal not set");
-          }
+        if(!start_ || goal_list_.size() == 0) {
+          throw ompl::Exception("Start/Goal not set");
+        }
 
-          pdef_->setStartAndGoalStates(start_, goalList_[0], 1.0);
+        pdef_->setStartAndGoalStates(start_, goal_list_[0], 1.0);
 
-          ompl::base::PlannerPtr plnr(new FIRM(siF_, false));
+        ompl::base::PlannerPtr plnr(new FIRM(siF_, false));
+        planner_ = plnr;
+        planner_->setProblemDefinition(pdef_);
+        planner_->as<FIRM>()->setMinFIRMNodes(min_nodes_);
+        planner_->as<FIRM>()->setMaxFIRMNodes(max_nodes_);
+        planner_->as<FIRM>()->setKidnappedState(kidnapped_state_);
+        planner_->as<FIRM>()->loadParametersFromFile(path_to_setup_file_.c_str());
+        planner_->setup();            
 
-          planner_ = plnr;
+        // Setup visualizer because it is needed while loading roadmap and visualizing it
+        Visualizer::updateSpaceInformation(this->getSpaceInformation());
 
-          planner_->setProblemDefinition(pdef_);
+        Visualizer::updateRenderer(*dynamic_cast<const ompl::app::RigidBodyGeometry*>(this), this->getGeometricStateExtractor());
 
-          planner_->as<FIRM>()->setMinFIRMNodes(minNodes_);
+        if (use_saved_road_map_ == 1) planner_->as<FIRM>()->loadRoadMapFromFile(path_to_road_map_file_.c_str());
 
-          planner_->as<FIRM>()->setMaxFIRMNodes(maxNodes_);
-
-          planner_->as<FIRM>()->setKidnappedState(kidnappedState_);
-
-          planner_->as<FIRM>()->loadParametersFromFile(pathToSetupFile_.c_str());
-          
-          planner_->setup();            
-
-          // Setup visualizer because it is needed while loading roadmap and visualizing it
-          Visualizer::updateSpaceInformation(this->getSpaceInformation());
-
-          Visualizer::updateRenderer(*dynamic_cast<const ompl::app::RigidBodyGeometry*>(this), this->getGeometricStateExtractor());
-
-          if (useSavedRoadMap_ == 1) planner_->as<FIRM>()->loadRoadMapFromFile(pathToRoadMapFile_.c_str());
-
-          setup_ = true;
+        setup_ = true;
       }
     }
 
@@ -228,7 +222,7 @@ public:
       if(!setup_) {
         this->setup();
       }
-      return planner_->solve(planningTime_);
+      return planner_->solve(planning_time_);
     }
 
     virtual void executeSolution(int choice=0) {
@@ -253,29 +247,29 @@ public:
     }
 
     void  Run() {
-      executeSolution(plannerMethod_);
+      executeSolution(planner_method_);
 
       // Need a function to get terminated state
-      if(goalList_.size() > 1) {
+      if(goal_list_.size() > 1) {
         updateEnvironmentMesh();
 
-        for(int i=0; i < goalList_.size()-1;i++) {
-          pdef_->setStartAndGoalStates(goalList_[i], goalList_[i+1], 1.0);
+        for(int i=0; i < goal_list_.size()-1;i++) {
+          pdef_->setStartAndGoalStates(goal_list_[i], goal_list_[i+1], 1.0);
 
           planner_->setProblemDefinition(pdef_);
 
           if(this->solve()) {
-            executeSolution(plannerMethod_);
+            executeSolution(planner_method_);
           }
         }
       }
     }
 
     virtual void updateEnvironmentMesh(int obindx = 0) {
-      if(dynamicObstacles_) {
+      if(dynamic_obstacles_) {
         // Set environment to new mesh with some dynamic / additional obstacles
-        if(!this->setEnvironmentMesh(dynObstList_[obindx])) {
-          OMPL_ERROR("Couldn't set mesh with path: %s",dynObstList_[obindx]);
+        if(!this->setEnvironmentMesh(dyn_obst_list_[obindx])) {
+          OMPL_ERROR("Couldn't set mesh with path: %s",dyn_obst_list_[obindx]);
         }
         
         const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_2D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);
@@ -313,7 +307,7 @@ protected:
     void loadGoals() {
       using namespace arma;
       // Load XML containing landmarks
-      TiXmlDocument doc(pathToSetupFile_);
+      TiXmlDocument doc(path_to_setup_file_);
       bool loadOkay = doc.LoadFile();
 
       if(!loadOkay) {
@@ -352,7 +346,7 @@ protected:
 
     void loadDynamicObstaclesList() {
       // Load XML containing dynamic obstacle model paths
-      TiXmlDocument doc(pathToSetupFile_);
+      TiXmlDocument doc(path_to_setup_file_);
       bool loadOkay = doc.LoadFile();
 
       if(!loadOkay) {
@@ -388,14 +382,14 @@ protected:
 
         std::cout<<"Loaded Dynamic Obstacle: "<<modelPath<<std::endl;
 
-        dynObstList_.push_back(modelPath);
+        dyn_obst_list_.push_back(modelPath);
       }
     }
 
   void loadParameters() {
     using namespace arma;
 
-    TiXmlDocument doc(pathToSetupFile_);
+    TiXmlDocument doc(path_to_setup_file_);
 
     bool loadOkay = doc.LoadFile();
 
@@ -423,17 +417,17 @@ protected:
     // planner method
     int methodChoice = 0;
     itemElement->QueryIntAttribute("method", &methodChoice);
-    plannerMethod_ = methodChoice;
+    planner_method_ = methodChoice;
 
     //Dynamic Obstacles
     int dynobst = 0;
     itemElement->QueryIntAttribute("dynobst", &dynobst);
 
     if(dynobst == 1) {
-      dynamicObstacles_ = true;
+      dynamic_obstacles_ = true;
       loadDynamicObstaclesList();
     } else {
-      dynamicObstacles_ = false;
+      dynamic_obstacles_ = false;
     }
 
     // Read the env mesh file
@@ -445,7 +439,7 @@ protected:
 
     std::string environmentFilePath;
     itemElement->QueryStringAttribute("environmentFile", &environmentFilePath);
-    pathToEnvironmentMesh_ = environmentFilePath;
+    path_to_environment_mesh_ = environmentFilePath;
     this->addEnvironmentMesh(environmentFilePath);
 
     // Read the robot mesh file
@@ -468,11 +462,11 @@ protected:
 
     std::string tempPathStr;
     itemElement->QueryStringAttribute("roadmapFile", &tempPathStr);
-    pathToRoadMapFile_ = tempPathStr;
+    path_to_road_map_file_ = tempPathStr;
 
     int usermap = 0;
     itemElement->QueryIntAttribute("useRoadMap", &usermap);
-    useSavedRoadMap_ = usermap;
+    use_saved_road_map_ = usermap;
 
     // Read the start Pose
     child  = node->FirstChild("StartPose");
@@ -516,7 +510,7 @@ protected:
 
     itemElement->QueryDoubleAttribute("maxTime", &time) ;
 
-    planningTime_ = time;
+    planning_time_ = time;
 
     // read planning time
     child  = node->FirstChild("FIRMNodes");
@@ -527,11 +521,11 @@ protected:
 
     int minNodeNum = 0;
     itemElement->QueryIntAttribute("minNodes", &minNodeNum) ;
-    minNodes_ = minNodeNum;
+    min_nodes_ = minNodeNum;
 
     int maxNodeNum = 0;
     itemElement->QueryIntAttribute("maxNodes", &maxNodeNum) ;
-    maxNodes_ = maxNodeNum;
+    max_nodes_ = maxNodeNum;
 
     // Read Kidnapped State
     // Read the Goal Pose
@@ -546,20 +540,20 @@ protected:
     itemElement->QueryDoubleAttribute("x", &kX);
     itemElement->QueryDoubleAttribute("y", &kY);
 
-    kidnappedState_ = siF_->allocState();
+    kidnapped_state_ = siF_->allocState();
 
-    kidnappedState_->as<SE2BeliefSpace::StateType>()->setXY(kX, kY);
+    kidnapped_state_->as<SE2BeliefSpace::StateType>()->setXY(kX, kY);
 
     loadGoals();
 
     OMPL_INFORM("Problem configuration is");
     std::cout<<"Path to environment mesh: "<<environmentFilePath<<std::endl;
     std::cout<<"Path to robot mesh: "<<robotFilePath<<std::endl;
-    std::cout<<"Path to Roadmap File: "<<pathToRoadMapFile_<<std::endl;
+    std::cout<<"Path to Roadmap File: "<<path_to_road_map_file_<<std::endl;
     std::cout<<"Start Pose X: "<<startX<<" Y: "<<startY<<std::endl;
-    std::cout<<"Planning Time: "<<planningTime_<<" seconds"<<std::endl;
-    std::cout<<"Min Nodes: "<<minNodes_<<std::endl;
-    std::cout<<"Max Nodes: "<<maxNodes_<<std::endl;
+    std::cout<<"Planning Time: "<<planning_time_<<" seconds"<<std::endl;
+    std::cout<<"Min Nodes: "<<min_nodes_<<std::endl;
+    std::cout<<"Max Nodes: "<<max_nodes_<<std::endl;
     std::cout<<"Kidnapped Pose x:"<<kX<<" y:"<<kY<<std::endl;
 
     // Goal Constraints
@@ -603,13 +597,13 @@ protected:
 protected:
   ompl::base::State *start_;
 
-  std::vector<ompl::base::State*> goalList_;
+  std::vector<ompl::base::State*> goal_list_;
 
-  ompl::base::State *kidnappedState_;
+  ompl::base::State *kidnapped_state_;
 
   firm::SpaceInformation::SpaceInformationPtr siF_;
 
-  ompl::control::StatePropagatorPtr statePropagator_;
+  ompl::control::StatePropagatorPtr state_propagator_;
 
   ompl::control::ControlSpacePtr cs_;
 
@@ -621,26 +615,26 @@ protected:
 
   ompl::base::StateValidityCheckerPtr vc_;
 
-  std::string pathToSetupFile_;
+  std::string path_to_setup_file_;
 
-  std::string pathToRoadMapFile_;
+  std::string path_to_road_map_file_;
 
-  std::string pathToEnvironmentMesh_;
+  std::string path_to_environment_mesh_;
 
-  int useSavedRoadMap_;
+  int use_saved_road_map_;
 
-  double planningTime_;
+  double planning_time_;
 
-  unsigned int minNodes_;
-  unsigned int maxNodes_;
+  unsigned int min_nodes_;
+  unsigned int max_nodes_;
 
   bool setup_;
 
   /** \brief Activate dynamic obstacles */
-  bool dynamicObstacles_;
+  bool dynamic_obstacles_;
 
-  std::vector<string> dynObstList_;
+  std::vector<string> dyn_obst_list_;
 
-  int plannerMethod_;
+  int planner_method_;
 };
 #endif

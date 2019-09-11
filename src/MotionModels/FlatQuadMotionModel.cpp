@@ -34,13 +34,12 @@
 
 /* Authors: Abhishek Cauligi */ 
 
-
+#include <cassert>
 #include <tinyxml.h>
+
+#include "Utils/FIRMUtils.h"
 #include "Spaces/FlatQuadBeliefSpace.h"
 #include "MotionModels/FlatQuadMotionModel.h"
-#include "Utils/FIRMUtils.h"
-
-#include<cassert>
 
 //Produce the next state, given the current state, a control and a noise
 void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::control::Control *control, const NoiseType& w, ompl::base::State *result) {
@@ -70,11 +69,8 @@ void FlatQuadMotionModel::generateOpenLoopControls(const ompl::base::State *star
   colvec start = startState->as<StateType>()->getArmaData(); // turn into colvec (in radian)
   colvec target = endState->as<StateType>()->getArmaData(); // turn into colvec (in radian)
 
-  double delta_disp = 0;
-
   double translation_steps = 0;
-
-  translation_steps = floor( std::max( fabs((target[0]-start[0])/(maxLinearVelocity_*this->dt_)), fabs((target[1]-start[1])/(maxLinearVelocity_*this->dt_))) );
+  translation_steps = floor( std::max( fabs((target[0]-start[0])/(max_linear_velocity_*this->dt_)), fabs((target[1]-start[1])/(max_linear_velocity_*this->dt_))) );
 
   colvec u_const;
   u_const << (target[0]-start[0]) / (translation_steps*this->dt_) << endr
@@ -90,9 +86,7 @@ void FlatQuadMotionModel::generateOpenLoopControls(const ompl::base::State *star
 void FlatQuadMotionModel::generateOpenLoopControlsForPath(const ompl::geometric::PathGeometric path, std::vector<ompl::control::Control*> &openLoopControls) {
   for(int i=0;i<path.getStateCount()-1;i++) {
     std::vector<ompl::control::Control*> olc;
-
     this->generateOpenLoopControls(path.getState(i),path.getState(i+1),olc) ;
-
     openLoopControls.insert(openLoopControls.end(),olc.begin(),olc.end());
   }
 }
@@ -135,18 +129,7 @@ typename FlatQuadMotionModel::JacobianType
 FlatQuadMotionModel::getNoiseJacobian(const ompl::base::State *state, const ompl::control::Control* control, const NoiseType& w) {
   using namespace arma;
   typedef typename MotionModelMethod::StateType StateType;
-
-  colvec xData = state->as<StateType>()->getArmaData();
-
-  assert (xData.n_rows == (size_t)this->stateDim_);
-
-  mat G(this->stateDim_,this->noiseDim_);
-
-  G   << 1 << 0 << 1 << 0 << endr
-      << 0 << 1 << 0 << 1 << endr;
-
-  G *= sqrt(this->dt_);
-  return G;
+  return this->Gk_; 
 }
 
 arma::mat FlatQuadMotionModel::processNoiseCovariance(const ompl::base::State *state, const ompl::control::Control* control) {
@@ -177,6 +160,32 @@ arma::mat FlatQuadMotionModel::controlNoiseCovariance(const ompl::control::Contr
   return P_Un;
 }
 
+void FlatQuadMotionModel::constructAB() {
+  using namespace arma;
+  // Set up continuous time dynamics matrices 
+  this->A_ = zeros(this->stateDim_, this->stateDim_);
+  this->B_ = zeros(this->stateDim_, this->controlDim_);
+  for (int ii=0; ii<this->controlDim_; ii++) {
+    this->A_[4+ii,4+ii] = 1;
+    this->A_[8+ii,8+ii] = 1;
+    this->B_[8+ii,ii] = 1;
+  }
+
+  // Set up discrete time update matrices
+  this->Ak_ = eye(this->stateDim_, this->stateDim_);
+  this->Bk_ = zeros(this->stateDim_, this->controlDim_);
+  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->stateDim_);
+  for (int ii=0; ii<this->controlDim_; ii++) {
+    this->Ak_[ii,4+ii] = this->dt_;
+    this->Ak_[ii,8+ii] = 0.5*this->dt_ * this->dt_;
+    this->Ak_[4+ii,8+ii] = this->dt_;
+
+    this->Bk_[ii,ii] = 1/6*this->dt_*this->dt_*this->dt_;
+    this->Bk_[4+ii,ii] = 1/2*this->dt_*this->dt_;
+    this->Bk_[8+ii,ii] = this->dt_;
+  }
+}
+
 void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   using namespace arma;
 
@@ -202,57 +211,31 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   itemElement = child->ToElement();
   assert( itemElement );
 
-  double sigmaV=0;
-  double etaV = 0;
-  double windNoisePos=0;
-  double maxLinearVelocity=0;
-  double maxLinearAcceleration=0;
-  double maxLinearJerk=0;
-  double dt = 0;
+  double attribute_val = 0;
 
-  itemElement->QueryDoubleAttribute("sigmaV", &sigmaV) ;
-  itemElement->QueryDoubleAttribute("etaV", &etaV) ;
-  itemElement->QueryDoubleAttribute("wind_noise_pos", &windNoisePos) ;
-  itemElement->QueryDoubleAttribute("max_linear_velocity", &maxLinearVelocity) ;
-  itemElement->QueryDoubleAttribute("max_linear_acceleration", &maxLinearAcceleration) ;
-  itemElement->QueryDoubleAttribute("max_linear_jerk", &maxLinearJerk) ;
-  itemElement->QueryDoubleAttribute("dt", &dt) ;
-
-  // parameters used to compute process noise values
-  this->sigma_ << sigmaV << sigmaV << sigmaV << sigmaV << endr;
-  this->eta_  << etav << etav << etav << etav << endr;
-
-  rowvec Wg_root_vec(4);
-  Wg_root_vec << windNoisePos << windNoisePos << windNoisePos << windNoisePos << endr;
-  this->P_Wg_ = diagmat(square(Wg_root_vec));
-
-  this->maxLinearVelocity_      = maxLinearVelocity;
-  this->maxLinearAcceleration_  = maxLinearAcceleration;
-  this->maxLinearJerk_          = maxLinearJerk;
-  this->dt_                     = dt;
-
-  // Set up continuous time dynamics matrices 
-  this->A_ = zeros(this->stateDim_, this->stateDim_);
-  this->B_ = zeros(this->stateDim_, this->controlDim_);
-  for (int ii=0; ii<this->controlDim_; ii++) {
-    this->A_[4+ii,4+ii] = 1;
-    this->A_[8+ii,8+ii] = 1;
-    this->B_[8+ii,ii] = 1;
-  }
+  // Bias standard deviation of the motion noise
+  itemElement->QueryDoubleAttribute("sigmaV", &attribute_val) ;
+  this->sigma_ << attribute_val << attribute_val << attribute_val << attribute_val << endr;
   
-  // Set up discrete time update matrices
-  this->Ak_ = eye(this->stateDim_, this->stateDim_);
-  this->Bk_ = zeros(this->stateDim_, this->controlDim_);
-  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->stateDim_);
-  for (int ii=0; ii<this->controlDim_; ii++) {
-    this->Ak_[ii,4+ii] = this->dt_;
-    this->Ak_[ii,8+ii] = 0.5*this->dt_ * this->dt_;
-    this->Ak_[4+ii,8+ii] = this->dt_;
+  // Proportional standard deviation of the motion noise 
+  itemElement->QueryDoubleAttribute("etaV", &attribute_val) ;
+  this->eta_  << attribute_val << attribute_val << attribute_val << attribute_val << endr;
 
-    this->Bk_[ii,ii] = 1/6*this->dt_*this->dt_*this->dt_;
-    this->Bk_[4+ii,ii] = 1/2*this->dt_*this->dt_;
-    this->Bk_[8+ii,ii] = this->dt_;
-  }
+  // Covariance of state additive noise
+  itemElement->QueryDoubleAttribute("wind_noise_pos", &attribute_val) ;
+  rowvec Wg_root_vec(4);
+  Wg_root_vec << attribute_val << attribute_val << attribute_val << attribute_val << endr;
+  this->P_Wg_ = diagmat(square(Wg_root_vec));
+  
+  // MAV constraints in flat space
+  itemElement->QueryDoubleAttribute("max_linear_velocity", &attribute_val) ;
+  this->max_linear_velocity_      = attribute_val;
+  itemElement->QueryDoubleAttribute("max_linear_acceleration", &attribute_val) ;
+  this->max_linear_acceleration_  = attribute_val;
+  itemElement->QueryDoubleAttribute("max_linear_jerk", &attribute_val) ;
+  this->max_linear_jerk_          = attribute_val;
+  itemElement->QueryDoubleAttribute("dt", &attribute_val) ;
+  this->dt_                     = attribute_val;
 
   OMPL_INFORM("FlatQuadMotionModel: sigma_ = ");
   std::cout<<this->sigma_<<std::endl;
@@ -263,9 +246,9 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   OMPL_INFORM("FlatQuadMotionModel: P_Wg_ = ");
   std::cout<<this->P_Wg_<<std::endl;
 
-  OMPL_INFORM("FlatQuadMotionModel: max Linear Velocity (m/s)    = %f", maxLinearVelocity);
-  OMPL_INFORM("FlatQuadMotionModel: max Linear Acceleration (m/s^2)    = %f", maxLinearAcceleration);
-  OMPL_INFORM("FlatQuadMotionModel: max Linear Jerk (m/s^3)    = %f", maxLinearJerk);
+  OMPL_INFORM("FlatQuadMotionModel: max Linear Velocity (m/s)    = %f",       this->max_linear_velocity_);
+  OMPL_INFORM("FlatQuadMotionModel: max Linear Acceleration (m/s^2)    = %f", this->max_linear_acceleration_);
+  OMPL_INFORM("FlatQuadMotionModel: max Linear Jerk (m/s^3)    = %f",         this->max_linear_jerk_);
 
-  OMPL_INFORM("FlatQuadMotionModel: Timestep (seconds) = %f", dt);
+  OMPL_INFORM("FlatQuadMotionModel: Timestep (seconds) = %f", this->dt_);
 }

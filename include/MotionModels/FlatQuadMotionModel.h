@@ -37,9 +37,10 @@
 #ifndef FLAT_QUAD_MOTIONMODEL_
 #define FLAT_QUAD_MOTIONMODEL_
 
-#include "MotionModelMethod.h"
 #include <limits>
 #include <cassert>
+
+#include "MotionModelMethod.h"
 
 class FlatQuadMotionModel: public MotionModelMethod {
   //Dimensions of stat vector, control vector, motion noise vector
@@ -57,6 +58,7 @@ class FlatQuadMotionModel: public MotionModelMethod {
     /** \brief XML-based constructor */
     FlatQuadMotionModel(const ompl::control::SpaceInformationPtr si, const char *pathToSetupFile) : MotionModelMethod(si, motionNoiseDim) {
       this->loadParameters(pathToSetupFile);
+      this->constructAB();
     }
 
     /** \brief Destructor. */
@@ -106,20 +108,23 @@ class FlatQuadMotionModel: public MotionModelMethod {
 
     /** \brief  Covariance of state additive noise */
     arma::mat P_Wg_; //
-    
+
+    /** \brief max translational vel/acc/jerk parameters */
+    double max_linear_velocity_;
+    double max_linear_acceleration_;
+    double max_linear_jerk_;
+
     /** \brief Continuous time LTI triple integrator dynamics matrices */ 
     arma::mat A_; 
     arma::mat B_; 
-    
+
     /** \brief Discrete time LTI triple integrator state update matrices */ 
     arma::mat Ak_; 
     arma::mat Bk_; 
     arma::mat Gk_;    // for process noise
 
-    /** \brief max translational vel/acc/jerk parameters */
-    double maxLinearVelocity_; //
-    double maxLinearAcceleration_; //
-    double maxLinearJerk_; //
+    void constructAB();
+
 };
 
 #endif

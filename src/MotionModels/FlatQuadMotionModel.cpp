@@ -54,7 +54,8 @@ void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::con
 
   // TODO(acauligi): what is appropriate noise model for triple integrator?
   colvec x = state->as<StateType>()->getArmaData();
-  x = this->Ak_*x + this->Bk_*u + this->Gk_*(Un+Wg); 
+  // x = this->Ak_*x + this->Bk_*u + this->Gk_*(Un+Wg); 
+  x = this->Ak_*x + this->Bk_*u + this->Gk_ * Un; 
 
   result->as<StateType>()->setArmaData(x);
 }
@@ -161,6 +162,8 @@ arma::mat FlatQuadMotionModel::controlNoiseCovariance(const ompl::control::Contr
 }
 
 void FlatQuadMotionModel::constructAB() {
+  // LTI triple integrator model
+
   using namespace arma;
   // Set up continuous time dynamics matrices 
   this->A_ = zeros(this->stateDim_, this->stateDim_);
@@ -174,7 +177,7 @@ void FlatQuadMotionModel::constructAB() {
   // Set up discrete time update matrices
   this->Ak_ = eye(this->stateDim_, this->stateDim_);
   this->Bk_ = zeros(this->stateDim_, this->controlDim_);
-  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->stateDim_);
+  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->controlDim_);
   for (int ii=0; ii<this->controlDim_; ii++) {
     this->Ak_[ii,4+ii] = this->dt_;
     this->Ak_[ii,8+ii] = 0.5*this->dt_ * this->dt_;
@@ -215,16 +218,16 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
 
   // Bias standard deviation of the motion noise
   itemElement->QueryDoubleAttribute("sigmaV", &attribute_val) ;
-  this->sigma_ << attribute_val << attribute_val << attribute_val << attribute_val << endr;
+  this->sigma_ = attribute_val * arma::colvec(this->controlDim_); 
   
   // Proportional standard deviation of the motion noise 
   itemElement->QueryDoubleAttribute("etaV", &attribute_val) ;
-  this->eta_  << attribute_val << attribute_val << attribute_val << attribute_val << endr;
+  this->eta_ = attribute_val * arma::colvec(this->controlDim_); 
 
   // Covariance of state additive noise
   itemElement->QueryDoubleAttribute("wind_noise_pos", &attribute_val) ;
-  rowvec Wg_root_vec(4);
-  Wg_root_vec << attribute_val << attribute_val << attribute_val << attribute_val << endr;
+  rowvec Wg_root_vec(this->stateDim_);
+  Wg_root_vec = attribute_val * arma::rowvec(this->stateDim_);
   this->P_Wg_ = diagmat(square(Wg_root_vec));
   
   // MAV constraints in flat space

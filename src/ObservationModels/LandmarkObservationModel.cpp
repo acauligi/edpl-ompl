@@ -66,7 +66,7 @@ LandmarkObservationModel::getObservation(const ompl::base::State *state, bool is
       noise = sigma_%randNoiseVec;
     }
 
-    colvec image_meas = zeros<colvec>(landmarkInfoDim);
+    colvec image_meas = zeros<colvec>(obsNoiseDim);
     if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
       z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas + noise;
     }
@@ -82,7 +82,7 @@ LandmarkObservationModel::getObservationPrediction(const ompl::base::State *stat
 
   //generate observation from state
   for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
-    colvec image_meas = zeros<colvec>(landmarkInfoDim);
+    colvec image_meas = zeros<colvec>(obsNoiseDim);
     if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
       z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas; 
     }
@@ -103,7 +103,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
   for(unsigned int ii=0; ii<number_of_landmarks; ii++) {
     mat H_i(2,12);
     
-    colvec lk_w = landmarks_[ii];
+    colvec lk_w = landmarks_[ii].subvec(1,3);
     mat Rbw_(3,3);    // world to body SO(3) rotation matrix
     colvec pbw_(3);   // world to body R3 position
 
@@ -118,17 +118,17 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
       this->getObservationHx(state,dRbw_dx[jj],jj);
     }
     
-    std::vector<colvec> dpbw_dx;
+    std::vector<mat> dpbw_dx;
     for (size_t jj=0; jj<3; jj++) {
-      colvec local_grad = zeros(12); 
-      local_grad[jj] = 1.;
+      mat local_grad = zeros(1,12); 
+      local_grad[0,jj] = 1.;
       dpbw_dx.push_back(local_grad);
     }
 
     mat dlk_c_dx = zeros(3,12);
     for (int jj=0; jj<3; jj++) {
       for (int kk=0; kk<3; kk++) {
-        dlk_c_dx.row(jj) += (lk_c[kk]*this->K_.row(jj)*this->Rcb_ * dRbw_dx[kk] + dpbw_dx[kk] * K_.row(jj) * Rbw_.col(kk));
+        dlk_c_dx.row(jj) += (lk_c[kk]*this->K_.row(jj)*this->Rcb_ * dRbw_dx[kk] + dpbw_dx[kk] * (K_.row(jj) * Rbw_.col(kk)).eval()(0,0));;
       }
     }
 
@@ -229,13 +229,14 @@ arma::mat LandmarkObservationModel::getObservationNoiseCovariance(const ompl::ba
 bool LandmarkObservationModel::getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas) {
 	using namespace arma;
 	colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+  colvec lmk = landmark.subvec(1,3);    // discard ID value stored in landmark[0]
 
   // position of quad pbw and orientation of world w.r.t. quad Rwb 
   colvec pbw = x_vec.subvec(0,2); 
 	mat Rwb(3,3); 
 	// mat Rwb = state->as<FlatQuadBeliefSpace::StateType>()->flatToDCM();
 	
-  colvec lmk_world = this->K_ * (this->Rcb_* Rwb.t() * landmark + this->Rcb_ * pbw + this->pcb_);
+  colvec lmk_world = this->K_ * (this->Rcb_* Rwb * lmk + this->Rcb_ * pbw + this->pcb_);
   image_meas[0] = lmk_world[0] / lmk_world[2];
   image_meas[1] = lmk_world[1] / lmk_world[2];
 

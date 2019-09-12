@@ -107,6 +107,17 @@ public:
       bounds.setLow(0, 0.);     bounds.setHigh(0, 20);
       bounds.setLow(1, 0.);     bounds.setHigh(1, 20);
       bounds.setLow(2, 0.);     bounds.setHigh(2, 20);
+      bounds.setLow(3, 0.);     bounds.setHigh(3, 0.);    // yaw angle value not used
+
+      bounds.setLow(4, -10);     bounds.setHigh(4, 10);
+      bounds.setLow(5, -10);     bounds.setHigh(5, 10);
+      bounds.setLow(6, -10);     bounds.setHigh(6, 10);
+      bounds.setLow(7, -10);     bounds.setHigh(7, 10);
+
+      bounds.setLow(8, -10);     bounds.setHigh(8, 10);
+      bounds.setLow(9, -10);     bounds.setHigh(9, 10);
+      bounds.setLow(10, -10);     bounds.setHigh(10, 10);
+      bounds.setLow(11, -10);     bounds.setHigh(11, 10);
 
       ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 
@@ -532,11 +543,11 @@ protected:
     std::cout<<"Path to environment mesh: "<<environment_file_path<<std::endl;
     std::cout<<"Path to robot mesh: "<<robot_file_path<<std::endl;
     std::cout<<"Path to Roadmap File: "<<path_to_road_map_file_<<std::endl;
-    std::cout<<"Start Pose X: "<<startX<<" Y: "<<startY<<std::endl;
+    std::cout<<"Start Pose X: " << startX << " Y: " << startY << " Z: " << startZ << std::endl;
     std::cout<<"Planning Time: "<<planning_time_<<" seconds"<<std::endl;
     std::cout<<"Min Nodes: "<<min_nodes_<<std::endl;
     std::cout<<"Max Nodes: "<<max_nodes_<<std::endl;
-    std::cout<<"Kidnapped Pose x:"<<kX<<" y:"<<kY<<std::endl;
+    std::cout<<"Kidnapped Pose x:" << kX << " y:" << kY << " z: " << kZ <<std::endl;
 
     // Goal Constraints
     node = doc.FirstChild( "GoalConstraints" );

@@ -52,6 +52,13 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
   public:
     typedef unsigned long int Vertex;    // HACK from include/Planner/FIRM.h
 
+
+
+    enum FLAT_TRANSFORM_METHOD {
+      ZYX=0,
+      ZXY=1
+    };
+
     /** \brief A belief in flat output space: (sigma, sigma_d, sigma_dd, covariance) where sigma = (x,y,z,yaw)  */
   class StateType : public CompoundStateSpace::StateType {
     public:
@@ -347,12 +354,17 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
       double getPosDistanceTo(const ompl::base::State *state) const;
       double getOriDistanceTo(const ompl::base::State *state) const;
       double getCovDistanceTo(const ompl::base::State *state) const;
+  
+      int flatTransformMethod() const;
+      arma::mat flatToDCM() const;
 
       static double meanNormWeight_, covNormWeight_, reachDist_, reachDistPos_, reachDistOri_, reachDistCov_;
 
       static arma::colvec normWeights_;
+      const double gravity_ = 9.81;
 
     private:
+
       arma::mat covariance_;
       size_t controllerID_;
 
@@ -376,10 +388,10 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
 
   FlatQuadBeliefSpace(void) : CompoundStateSpace() {
     setName("FLAT_BELIEF" + getName());
-    // TODO(acauligi): what is second arg below i.e. 1.0? How to set type_ variable correctly?
     type_ = STATE_SPACE_SE2;
+    // second arg below (i.e. 1.0) sets weights of each added subspace for computing distances between states in the compound state space
     addSubspace(StateSpacePtr(new RealVectorStateSpace(3)), 1.0); // pose (x-y-z)
-    addSubspace(StateSpacePtr(new SO2StateSpace()), 0.5);         // pose(yaw)
+    addSubspace(StateSpacePtr(new SO2StateSpace()), 1.0);         // pose(yaw)
     addSubspace(StateSpacePtr(new RealVectorStateSpace(4)), 1.0); // velocity 
     addSubspace(StateSpacePtr(new RealVectorStateSpace(4)), 1.0); // acceleration
     lock();
@@ -390,11 +402,11 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
 
   /** \copydoc RealVectorStateSpace::setBounds() */
   void setBounds(const RealVectorBounds &bounds) {
-    // TODO(acauligi): define for all components of state
+    // TODO(acauligi): define correctly for all state components 
     ompl::base::RealVectorBounds pos_bounds(3);
-    pos_bounds.setLow(0, bounds.low[0]);    pos_bounds.setHigh(0, bounds.high[0]);
-    pos_bounds.setLow(1, bounds.low[1]);    pos_bounds.setHigh(1, bounds.high[1]);
-    pos_bounds.setLow(2, bounds.low[2]);    pos_bounds.setHigh(2, bounds.high[2]);
+    pos_bounds.setLow(0, -10);    pos_bounds.setHigh(0, 10);
+    pos_bounds.setLow(1, -10);    pos_bounds.setHigh(1, 10);
+    pos_bounds.setLow(2, -10);    pos_bounds.setHigh(2, 10);
     as<RealVectorStateSpace>(0)->setBounds(pos_bounds);
     
     // yaw \in SO(2) does not have bound
@@ -431,8 +443,6 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
   void getRelativeState(const State *from, const State *to, State *state);
 
   void printBeliefState(const State *state);
-
-  arma::mat flatToDCM(const State *state); 
 
 };
 #endif

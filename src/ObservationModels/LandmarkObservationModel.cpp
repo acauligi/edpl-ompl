@@ -143,6 +143,8 @@ void LandmarkObservationModel::getObservationHx(const ompl::base::State *state, 
   // derivative of Rbw(:,coord_idx) w.r.t. x
   using namespace arma;
 
+  int flat_transform_method = state->as<FlatQuadBeliefSpace::StateType>()->flatTransformMethod();
+
   Hx = zeros(3,12);
   colvec x = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
   double z1 = x[0]; 
@@ -159,38 +161,50 @@ void LandmarkObservationModel::getObservationHx(const ompl::base::State *state, 
   double z12 = x[11]; 
 
   if (coord_idx==0) {
-    Hx.row(0) = rowvec({  0., 0., -(pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  -(pow(z10,3)*sin(z3) + 2*z9*pow(z10,2)*cos(z3) + 2*z9*pow(z11,2)*cos(z3) - pow(z9,2)*z10*sin(z3) + z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2),  -(z9*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0. } );
-    Hx.row(1) = rowvec({  0., 0., -(z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., (z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0. });
-    Hx.row(2) = rowvec({  0., 0., 0., 0., 0., 0., 0., 0., (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
-
-    // Jacobian for second way of recovering Rbw
-    if (false) {
-      Hx.row(0) = rowvec( { 0, 0, -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-      Hx.row(1) = rowvec( { 0, 0, -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (- pow(z10,3)*cos(z3) + pow(z9,2)*z10*cos(z3) - z10*pow(z11,2)*cos(z3) + 2*z9*pow(z10,2)*sin(z3) + 2*z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(z9*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.}); 
-      Hx.row(2) = rowvec( { 0, 0, 0, 0, 0, 0, 0, 0, (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+    switch(flat_transform_method) {
+      case FlatQuadBeliefSpace::ZYX:
+        Hx.row(0) = rowvec({  0., 0., -(pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  -(pow(z10,3)*sin(z3) + 2*z9*pow(z10,2)*cos(z3) + 2*z9*pow(z11,2)*cos(z3) - pow(z9,2)*z10*sin(z3) + z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2),  -(z9*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),2), 0. } );
+        Hx.row(1) = rowvec({  0., 0., -(z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., (z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0. });
+        Hx.row(2) = rowvec({  0., 0., 0., 0., 0., 0., 0., 0., (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
+        break;
+      case FlatQuadBeliefSpace::ZXY:
+        Hx.row(0) = rowvec( { 0, 0, -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        Hx.row(1) = rowvec( { 0, 0, -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (- pow(z10,3)*cos(z3) + pow(z9,2)*z10*cos(z3) - z10*pow(z11,2)*cos(z3) + 2*z9*pow(z10,2)*sin(z3) + 2*z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(z9*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z9*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.}); 
+        Hx.row(2) = rowvec( { 0, 0, 0, 0, 0, 0, 0, 0, (pow(z10,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        break;
+      default:
+        break;
     }
   } else if (coord_idx==1) {
-    Hx.row(0) = rowvec( { 0., 0., (pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., -(pow(z10,3)*cos(z3) - pow(z9,2)*z10*cos(z3) + z10*pow(z11,2)*cos(z3) - 2*z9*pow(z10,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(pow(z9,3)*cos(z3) - z9*pow(z10,2)*cos(z3) + z9*pow(z11,2)*cos(z3) + 2*pow(z9,2)*z10*sin(z3) + 2*z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-    Hx.row(1) = rowvec( { 0., 0., -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
-    Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
-
-    // Jacobian for second way of recovering Rbw
-    if (false) {
-      Hx.row(0) = rowvec( { 0., 0., (z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-      Hx.row(1) = rowvec( { 0., 0., -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  (z10*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(- pow(z9,3)*sin(z3) + 2*pow(z9,2)*z10*cos(z3) + 2*z10*pow(z11,2)*cos(z3) + z9*pow(z10,2)*sin(z3) - z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  (2*z10*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-      Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), });
+    switch(flat_transform_method) {
+      case FlatQuadBeliefSpace::ZYX:
+        Hx.row(0) = rowvec( { 0., 0., (pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., -(pow(z10,3)*cos(z3) - pow(z9,2)*z10*cos(z3) + z10*pow(z11,2)*cos(z3) - 2*z9*pow(z10,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(pow(z9,3)*cos(z3) - z9*pow(z10,2)*cos(z3) + z9*pow(z11,2)*cos(z3) + 2*pow(z9,2)*z10*sin(z3) + 2*z10*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), (2*z10*z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+        Hx.row(1) = rowvec( { 0., 0., -(z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),0.5), 0., 0., 0., 0., 0., -(z9*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (cos(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
+        Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2),1.5), 0.});
+        break;
+      case FlatQuadBeliefSpace::ZXY:
+        Hx.row(0) = rowvec( { 0., 0., (z11*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(z9*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (sin(z3)*(pow(z9,2) + pow(z10,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        Hx.row(1) = rowvec( { 0., 0., -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0.,  (z10*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -(- pow(z9,3)*sin(z3) + 2*pow(z9,2)*z10*cos(z3) + 2*z10*pow(z11,2)*cos(z3) + z9*pow(z10,2)*sin(z3) - z9*pow(z11,2)*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  (2*z10*z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+        Hx.row(2) = rowvec( { 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z10)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z11,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), });
+        break;
+      default:
+        break;
     }
   } else {
     // coord_idx=2
-    Hx.row(0) = rowvec({ 0., 0., -(z11*(z10*cos(z3) - z9*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) - pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -((z9*cos(z3) + z10*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
-    Hx.row(1) = rowvec({ 0, 0, (z9*cos(z3) + z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, (pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0});
-    Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0, -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-
-    // Jacobian for second way of recovering Rbw
-    if (false) {
-      Hx.row(0) = rowvec({ 0., 0., -(z10*cos(z3) - z9*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
-      Hx.row(1) = rowvec({ 0., 0., (z11*(z9*cos(z3) + z10*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., (z11*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -((z10*cos(z3) - z9*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.});
-      Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+    switch(flat_transform_method) {
+      case FlatQuadBeliefSpace::ZYX:
+        Hx.row(0) = rowvec({ 0., 0., -(z11*(z10*cos(z3) - z9*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0, 0, 0, 0, 0, (z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) - pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*sin(z3) - pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) - 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2),  -((z9*cos(z3) + z10*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0});
+        Hx.row(1) = rowvec({ 0, 0, (z9*cos(z3) + z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0, 0, 0, 0, 0, (pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*cos(z3) + pow(z11,2)*cos(z3) + z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z10*cos(z3) - z9*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0});
+        Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0, -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        break;
+      case FlatQuadBeliefSpace::ZXY:
+        Hx.row(0) = rowvec({ 0., 0., -(z10*cos(z3) - z9*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 0.5), 0., 0., 0., 0., 0., -(pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) - z9*z10*sin(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(pow(z9,2)*sin(z3) + pow(z11,2)*sin(z3) - z9*z10*cos(z3))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (z11*(z9*cos(z3) + z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        Hx.row(1) = rowvec({ 0., 0., (z11*(z9*cos(z3) + z10*sin(z3)))/(pow(z9,2) + pow(z10,2) + pow(z11,2)), 0., 0., 0., 0., 0., (z11*(- pow(z9,2)*sin(z3) + pow(z10,2)*sin(z3) + pow(z11,2)*sin(z3) + 2*z9*z10*cos(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -(z11*(pow(z9,2)*cos(z3) - pow(z10,2)*cos(z3) + pow(z11,2)*cos(z3) + 2*z9*z10*sin(z3)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), -((z10*cos(z3) - z9*sin(z3))*(pow(z9,2) + pow(z10,2) - pow(z11,2)))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 2), 0.});
+        Hx.row(2) = rowvec({ 0., 0., 0., 0., 0., 0., 0., 0., -(z9*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), -(z10*z11)/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), (pow(z9,2) + pow(z10,2))/pow(pow(z9,2) + pow(z10,2) + pow(z11,2), 1.5), 0.});
+        break;
+      default:
+        break;
     }
   }
 }

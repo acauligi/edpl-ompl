@@ -218,16 +218,16 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
 
   // Bias standard deviation of the motion noise
   itemElement->QueryDoubleAttribute("sigmaV", &attribute_val) ;
-  this->sigma_ = attribute_val * arma::colvec(this->controlDim_); 
+  this->sigma_ = attribute_val * arma::ones<colvec>(this->controlDim_); 
   
   // Proportional standard deviation of the motion noise 
   itemElement->QueryDoubleAttribute("etaV", &attribute_val) ;
-  this->eta_ = attribute_val * arma::colvec(this->controlDim_); 
+  this->eta_ = attribute_val * arma::ones<colvec>(this->controlDim_); 
 
   // Covariance of state additive noise
   itemElement->QueryDoubleAttribute("wind_noise_pos", &attribute_val) ;
   rowvec Wg_root_vec(this->stateDim_);
-  Wg_root_vec = attribute_val * arma::rowvec(this->stateDim_);
+  Wg_root_vec = attribute_val * arma::ones<rowvec>(this->stateDim_);
   this->P_Wg_ = diagmat(square(Wg_root_vec));
   
   // MAV constraints in flat space

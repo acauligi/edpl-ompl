@@ -32,8 +32,8 @@
 </ObservationModels>
 <MotionModels>
 	<FlatQuadMotionModel 
-		sigmaV="0.0"
-		etaV="0.0"
+		sigmaV="0.001"
+		etaV="0.001"
         sigmaOmega="0.0"
         etaOmega="0.0"
 		P_Wg_filename=""
@@ -138,7 +138,7 @@
 <!--     <RoadMap roadmapFile = "./FIRMRoadMap&#45;FIRMCPSet5&#45;350.xml" useRoadMap = "1" /> -->
 
 
-	<Robot robotFile = "./Models/iRobot_thin.obj" />
+	<Robot robotFile = "./Models/rollo_rotor_body.obj" />
 
 	<Environment environmentFile = "./Models/iLQG-TRO-Task1-Pole9x9.obj" />
 
@@ -148,7 +148,7 @@
 </PlanningProblem>
 
 <GoalList>
-	<GoalPose x = "17.785" y = "17.785" z = "0.4" />
+	<GoalPose x = "7.785" y = "7.785" z = "0.4" />
 </GoalList>
 
 <GoalConstraints>

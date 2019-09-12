@@ -98,16 +98,16 @@ bool FlatQuadBeliefSpace::StateType::isReachedPose(const ompl::base::State *stat
   // subtract the two beliefs and get the norm
   arma::colvec stateDiff = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - this->getArmaData();
 
-  if(stateDiff[2] > boost::math::constants::pi<double>()) {
-    stateDiff[2] = (stateDiff[2] - 2*boost::math::constants::pi<double>());
+  if(stateDiff[3] > boost::math::constants::pi<double>()) {
+    stateDiff[3] = (stateDiff[3] - 2*boost::math::constants::pi<double>());
   }
-  if(stateDiff[2] < -boost::math::constants::pi<double>()) {
-    stateDiff[2] = stateDiff[2] + 2*boost::math::constants::pi<double>();
+  if(stateDiff[3] < -boost::math::constants::pi<double>()) {
+    stateDiff[3] = stateDiff[3] + 2*boost::math::constants::pi<double>();
   }
 
   // compute position and orientation errors
   double pos_distance_to_goal = arma::norm(stateDiff.subvec(0,2), 2);
-  double ori_distance_to_goal = std::abs(stateDiff[2]);
+  double ori_distance_to_goal = std::abs(stateDiff[3]);
 
   // check for position and orientation thresholds
   if(pos_distance_to_goal > nEpsilon * reachDistPos_) {
@@ -122,7 +122,6 @@ bool FlatQuadBeliefSpace::StateType::isReachedPose(const ompl::base::State *stat
 bool FlatQuadBeliefSpace::StateType::isReachedCov(const ompl::base::State *state, const double nEpsilon) const {
   // subtract the two covariances
   arma::mat covDiff = state->as<FlatQuadBeliefSpace::StateType>()->getCovariance() - this->getCovariance();
-
   arma::colvec covDiffDiag = covDiff.diag();
 
   // NOTE if the given state's covariance is already smaller than this goal state, set the difference to zero
@@ -318,8 +317,11 @@ double FlatQuadBeliefSpace::distance(const State* state1, const State *state2) {
   double dy = state1->as<StateType>()->getY() - state2->as<StateType>()->getY();
   double dz = state1->as<StateType>()->getZ() - state2->as<StateType>()->getZ();
 
-  // TODO(acauligi): include rotation distance metric?
-  return pow(dx*dx+dy*dy+dz*dz, 0.5);
+  arma::colvec stateDiff = state1->as<FlatQuadBeliefSpace::StateType>()->getArmaData() - 
+    state2->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+
+  // TODO(acauligi): use full 12D state distance from 2PBVP?
+  return arma::norm(stateDiff.subvec(0,2), 2);
 }
 
 void FlatQuadBeliefSpace::getRelativeState(const State *from, const State *to, State *state) {
@@ -364,16 +366,16 @@ void FlatQuadBeliefSpace::getRelativeState(const State *from, const State *to, S
   }
 }
 
-arma::mat FlatQuadBeliefSpace::flatToDCM(const State *state) {
-  arma::mat R(3,3);
-
+int FlatQuadBeliefSpace::StateType::flatTransformMethod() const {
   arma::colvec acc(4), t(3), xc(3), yc(3), zb(3), yb(3), xb(3);
-  double psi = state->as<StateType>()->getYaw();
+  // double psi = state->as<StateType>()->getYaw();
+  double psi = this->getYaw(); 
 
-  acc = state->as<StateType>()->getAcceleration();
+  // acc = state->as<StateType>()->getAcceleration();
+  acc = this->getAcceleration();
   t[0] = acc[0];
   t[1] = acc[1];
-  t[2] = acc[2];    // TODO(acauligi): add gravity value
+  t[2] = acc[2] + gravity_;
   zb = arma::normalise(t);
 
   xc[0] = cos(psi);   xc[1] = sin(psi); xc[2] = 0;
@@ -387,7 +389,35 @@ arma::mat FlatQuadBeliefSpace::flatToDCM(const State *state) {
     yb = arma::cross(zb,xc);
     yb = arma::normalise(yb);
     xb = arma::cross(yb,zb);
+    return ZYX;
+  }
+  return ZXY;
+}
+
+arma::mat FlatQuadBeliefSpace::StateType::flatToDCM() const {
+  arma::mat R(3,3);
+  arma::colvec acc(4), t(3), xb(3), yb(3), zb(3);
+  // double psi = state->as<StateType>()->getYaw();
+  double psi = this->getYaw(); 
+
+  // acc = state->as<StateType>()->getAcceleration();
+  acc = this->getAcceleration(); 
+  t[0] = acc[0];
+  t[1] = acc[1];
+  t[2] = acc[2] + gravity_;
+  zb = arma::normalise(t);
+
+  // Check which version of differential flatness transform to use
+  int flat_transform_method = this->flatTransformMethod();
+  if (flat_transform_method == ZYX) {
+    arma::colvec xc(3);
+    xc[0] = cos(psi);   xc[1] = sin(psi); xc[2] = 0;
+    yb = arma::cross(zb,xc);
+    yb = arma::normalise(yb);
+    xb = arma::cross(yb,zb);
   } else {
+    arma::colvec yc(3);
+    yc[0] = -sin(psi);  yc[2] = cos(psi); yc[2] = 0;
     xb = arma::cross(yc,zb);
     xb = arma::normalise(xb);
     yb = arma::cross(zb,xb);

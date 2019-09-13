@@ -45,39 +45,18 @@ double FlatQuadBeliefSpace::StateType::reachDistCov_   = -1;
 arma::colvec FlatQuadBeliefSpace::StateType::normWeights_ = arma::zeros<arma::colvec>(12);
 
 bool FlatQuadBeliefSpace::StateType::isReached(ompl::base::State *state, bool relaxedConstraint) const {
-  // subtract the two beliefs and get the norm
-  arma::colvec stateDiff = this->getArmaData() - state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
-
-  if(stateDiff[2] > boost::math::constants::pi<double>() ) {
-    stateDiff[2] =  (stateDiff[2] - 2*boost::math::constants::pi<double>()) ;
-  }
-  if( stateDiff[2] < -boost::math::constants::pi<double>() ) {
-    stateDiff[2] =  stateDiff[2] + 2*boost::math::constants::pi<double>() ;
+  // check if position and orientation errors are less than thresholds
+  if(!this->isReachedPose(state)) {
+    return false;
   }
 
-  arma::mat cov_diff = this->getCovariance() -  state->as<FlatQuadBeliefSpace::StateType>()->getCovariance();
-  arma::colvec cov_diff_diag = cov_diff.diag();
-
-  // Need weighted supNorm of difference in means
-  double mean_norm = arma::norm(stateDiff % normWeights_, "inf");
-
-  double cov_diag_norm = arma::norm(sqrt(abs(cov_diff_diag)) % normWeights_, "inf");
-
-  double norm2 =  std::max(mean_norm*meanNormWeight_, cov_diag_norm *covNormWeight_) ;
-
-  // TODO(acauligi): use reachDistCov_, reachDistPos_, reachDistOri_ to define reach_constraint?
-  double reach_constraint  = reachDist_;
-
-  if(relaxedConstraint) {
-    reach_constraint *= 4;
+  // check if covariance error is less than a threshold
+  if(!this->isReachedCov(state)) {
+    return false;
   }
 
-  if(norm2 <= reach_constraint) {
-    return true;
-  }
-
-  return false;
-
+  // otherwise, the given state is considered to have reached this state
+  return true;
 }
 
 bool FlatQuadBeliefSpace::StateType::isReachedWithinNEpsilon(const ompl::base::State *state, const double nEpsilon) const {

@@ -104,20 +104,20 @@ public:
       // The bounds should be inferred from the geometry files,
       // there is a function in Apputils to do this, so use that.        
       ompl::base::RealVectorBounds bounds(12);
-      bounds.setLow(0, 0.);     bounds.setHigh(0, 20);
-      bounds.setLow(1, 0.);     bounds.setHigh(1, 20);
-      bounds.setLow(2, 0.);     bounds.setHigh(2, 20);
-      bounds.setLow(3, 0.);     bounds.setHigh(3, 0.);    // yaw angle value not used
+      bounds.setLow(0, -15.);     bounds.setHigh(0, 20.);
+      bounds.setLow(1, -15.);     bounds.setHigh(1, 20.);
+      bounds.setLow(2, -15.);     bounds.setHigh(2, 20.);
+      bounds.setLow(3, -15.);     bounds.setHigh(3, 0.);    // yaw angle value not used
 
-      bounds.setLow(4, -10);     bounds.setHigh(4, 10);
-      bounds.setLow(5, -10);     bounds.setHigh(5, 10);
-      bounds.setLow(6, -10);     bounds.setHigh(6, 10);
-      bounds.setLow(7, -10);     bounds.setHigh(7, 10);
+      bounds.setLow(4, -10.);     bounds.setHigh(4, 10.);
+      bounds.setLow(5, -10.);     bounds.setHigh(5, 10.);
+      bounds.setLow(6, -10.);     bounds.setHigh(6, 10.);
+      bounds.setLow(7, -10.);     bounds.setHigh(7, 10.);
 
-      bounds.setLow(8, -10);     bounds.setHigh(8, 10);
-      bounds.setLow(9, -10);     bounds.setHigh(9, 10);
-      bounds.setLow(10, -10);     bounds.setHigh(10, 10);
-      bounds.setLow(11, -10);     bounds.setHigh(11, 10);
+      bounds.setLow(8, -10.);     bounds.setHigh(8, 10.);
+      bounds.setLow(9, -10.);     bounds.setHigh(9, 10.);
+      bounds.setLow(10, -10.);     bounds.setHigh(10, 10.);
+      bounds.setLow(11, -10.);     bounds.setHigh(11, 10);
 
       ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 
@@ -156,9 +156,9 @@ public:
       path_to_setup_file_  = path;       
     }
 
-    void setStartState(const double X, const double Y, const double Z) {
+    void setStartState(const double X, const double Y, const double Z, const double Yaw) {
       ompl::base::State *temp = siF_->allocState();
-      temp->as<StateType>()->setXYZ(X,Y,Z);
+      temp->as<StateType>()->setXYZYaw(X,Y,Z,Yaw);
       siF_->copyState(start_, temp);
       siF_->freeState(temp);
     }
@@ -188,15 +188,15 @@ public:
         siF_->setStateValidityChecker(fclSVC);
 
         // provide the observation model to the space
-        ObservationModelMethod::ObservationModelPointer om(new HeadingBeaconObservationModel(siF_, path_to_setup_file_.c_str()));
+        ObservationModelMethod::ObservationModelPointer om(new LandmarkObservationModel(siF_, path_to_setup_file_.c_str()));
         siF_->setObservationModel(om);
 
         // Provide the motion model to the space
         // We use the omnidirectional model because collision checking requires SE2
-        MotionModelMethod::MotionModelPointer mm(new OmnidirectionalMotionModel(siF_, path_to_setup_file_.c_str()));            
+        MotionModelMethod::MotionModelPointer mm(new FlatQuadMotionModel(siF_, path_to_setup_file_.c_str()));            
         siF_->setMotionModel(mm);
 
-        ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new OmnidirectionalStatePropagator(siF_)));
+        ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new FlatQuadStatePropagator(siF_)));
         state_propagator_ = prop;
         siF_->setStatePropagator(state_propagator_);
         siF_->setPropagationStepSize(0.1); // this is the duration that a control is applied
@@ -488,12 +488,13 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    double startX = 0,startY = 0, startZ = 0;
+    double startX = 0,startY = 0, startZ = 0, startYaw = 0;
 
     itemElement->QueryDoubleAttribute("x", &startX);
     itemElement->QueryDoubleAttribute("y", &startY);
     itemElement->QueryDoubleAttribute("z", &startZ);
-    setStartState(startX, startY, startZ);
+    itemElement->QueryDoubleAttribute("yaw", &startYaw);
+    setStartState(startX, startY, startZ, startYaw);
 
     // read planning time
     child  = node->FirstChild("PlanningTime");
@@ -529,13 +530,14 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    double kX = 0 , kY = 0, kZ = 0;
+    double kX = 0 , kY = 0, kZ = 0, kYaw = 0;
     itemElement->QueryDoubleAttribute("x", &kX);
     itemElement->QueryDoubleAttribute("y", &kY);
     itemElement->QueryDoubleAttribute("z", &kZ);
+    itemElement->QueryDoubleAttribute("yaw", &kYaw);
 
     kidnapped_state_ = siF_->allocState();
-    kidnapped_state_->as<FlatQuadBeliefSpace::StateType>()->setXYZ(kX, kY, kZ);
+    kidnapped_state_->as<FlatQuadBeliefSpace::StateType>()->setXYZYaw(kX, kY, kZ, kYaw);
 
     loadGoals();
 

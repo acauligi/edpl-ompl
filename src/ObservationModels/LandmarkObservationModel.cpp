@@ -120,7 +120,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
     
     std::vector<mat> dpbw_dx;
     for (size_t jj=0; jj<3; jj++) {
-      mat local_grad = zeros(1,12); 
+      rowvec local_grad = zeros<rowvec>(12);
       local_grad[0,jj] = 1.;
       dpbw_dx.push_back(local_grad);
     }

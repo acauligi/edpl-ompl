@@ -47,6 +47,14 @@
 #include "edplompl.h"
 #include "Visualization/Window.h"
 #include "Visualization/Visualizer.h"
+    
+// class myMotionValidator : public base::MotionValidator {
+//   public:
+//     bool checkMotion(const State *s1, const State *s2) const {
+//       // TODO(acauligi)
+//       return true;
+//     }
+// };
 
 /** \brief Wrapper for ompl::app::RigidBodyPlanning that plans for rigid bodies in FlatQuadBeliefSpace for a MAV using FIRM */
 class FlatQuadSetup : public ompl::app::RigidBodyGeometry {
@@ -186,7 +194,8 @@ public:
         // Create an FCL state validity checker and assign to space information
         const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
         siF_->setStateValidityChecker(fclSVC);
-        // siF_->setMotionValidator(std::make_shared<ob::DiscreteMotionValidator>(siF_))  // TODO(acauligi) : this too?
+
+        // siF_->setMotionValidator(std::make_shared<myMotionValidator>(siF_));
 
         // provide the observation model to the space
         ObservationModelMethod::ObservationModelPointer om(new LandmarkObservationModel(siF_, path_to_setup_file_.c_str()));

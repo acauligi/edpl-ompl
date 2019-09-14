@@ -413,9 +413,27 @@ arma::colvec FlatQuadBeliefSpace::StateType::flatToAxisAngle() const {
   // returns 4D vector with [ax, ay, az, angle] where (ax,ay,az) are axis of rotation
   arma::mat Rwb(3,3);
   Rwb = this->flatToDCM();
-  arma::colvec ax_angle(4);
+  arma::colvec ax_angle = arma::zeros<arma::colvec>(4);
 
-  // TODO(acauligi)
+  // Eq. 102 and 103a in "A Survey of Attitude Representations", M.D. Shuster (1993) 
+  double th = acos(0.5*(arma::trace(Rwb)-1));
+  if (th > boost::math::constants::pi<double>()) {
+    th -= 2*boost::math::constants::pi<double>();
+  }
+  if(th < -boost::math::constants::pi<double>()) {
+    th += 2*boost::math::constants::pi<double>();
+  }
+
+  // Ensure sin(th) != 0
+  double sin_th = sin(th);
+  if (abs(sin_th) > 1e-3) {
+    ax_angle[0] = 1/(2*sin_th) * (Rwb[1,2]-Rwb[2,1]);
+    ax_angle[1] = 1/(2*sin_th) * (Rwb[2,0]-Rwb[0,2]);
+    ax_angle[2] = 1/(2*sin_th) * (Rwb[0,1]-Rwb[1,0]);
+  }
+
+  ax_angle = arma::normalise(ax_angle);
+  ax_angle[3] = th;
 
   return ax_angle;
 }

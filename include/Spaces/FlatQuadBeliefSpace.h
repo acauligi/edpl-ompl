@@ -357,6 +357,8 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
   
       int flatTransformMethod() const;
       arma::mat flatToDCM() const;
+      arma::colvec flatToAxisAngle() const;
+      ompl::base::StateSpacePtr flatToOMPLSO3() const; 
 
       static double meanNormWeight_, covNormWeight_, reachDist_, reachDistPos_, reachDistOri_, reachDistCov_;
 

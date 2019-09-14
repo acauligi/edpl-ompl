@@ -104,20 +104,20 @@ public:
       // The bounds should be inferred from the geometry files,
       // there is a function in Apputils to do this, so use that.        
       ompl::base::RealVectorBounds bounds(12);
-      bounds.setLow(0, -15.);     bounds.setHigh(0, 20.);
-      bounds.setLow(1, -15.);     bounds.setHigh(1, 20.);
-      bounds.setLow(2, -15.);     bounds.setHigh(2, 20.);
-      bounds.setLow(3, -15.);     bounds.setHigh(3, 0.);    // yaw angle value not used
+      bounds.setLow(0, -20.);     bounds.setHigh(0, 20.);
+      bounds.setLow(1, -20.);     bounds.setHigh(1, 20.);
+      bounds.setLow(2, -20.);     bounds.setHigh(2, 20.);
+      bounds.setLow(3, -6.28);     bounds.setHigh(3, 6.28);    // yaw angle value not used
 
-      bounds.setLow(4, -10.);     bounds.setHigh(4, 10.);
-      bounds.setLow(5, -10.);     bounds.setHigh(5, 10.);
-      bounds.setLow(6, -10.);     bounds.setHigh(6, 10.);
-      bounds.setLow(7, -10.);     bounds.setHigh(7, 10.);
+      bounds.setLow(4, 0.);     bounds.setHigh(4, 0.);
+      bounds.setLow(5, 0.);     bounds.setHigh(5, 0.);
+      bounds.setLow(6, 0.);     bounds.setHigh(6, 0.);
+      bounds.setLow(7, 0.);     bounds.setHigh(7, 0.);
 
-      bounds.setLow(8, -10.);     bounds.setHigh(8, 10.);
-      bounds.setLow(9, -10.);     bounds.setHigh(9, 10.);
-      bounds.setLow(10, -10.);     bounds.setHigh(10, 10.);
-      bounds.setLow(11, -10.);     bounds.setHigh(11, 10);
+      bounds.setLow(8, -0.);     bounds.setHigh(8, 0.);
+      bounds.setLow(9, -0.);     bounds.setHigh(9, 0.);
+      bounds.setLow(10, -0.);     bounds.setHigh(10, 0.);
+      bounds.setLow(11, -0.);     bounds.setHigh(11, 0);
 
       ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 
@@ -186,6 +186,7 @@ public:
         // Create an FCL state validity checker and assign to space information
         const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
         siF_->setStateValidityChecker(fclSVC);
+        // siF_->setMotionValidator(std::make_shared<ob::DiscreteMotionValidator>(siF_))  // TODO(acauligi) : this too?
 
         // provide the observation model to the space
         ObservationModelMethod::ObservationModelPointer om(new LandmarkObservationModel(siF_, path_to_setup_file_.c_str()));
@@ -312,7 +313,21 @@ protected:
     }
 
     const ompl::base::State* getGeometricComponentStateInternal(const ompl::base::State *state, unsigned int /*index*/) const {
-      return state;
+      // Convert FlatQuadBeliefSpace representation to SE3StateSpace pose used for collision checking
+      ompl::base::StateSpacePtr pose_space(new ompl::base::SE3StateSpace());
+      ompl::base::State * pose_state = pose_space->allocState();
+
+      pose_state->as<ompl::base::SE3StateSpace::StateType>()->setXYZ(
+        state->as<FlatQuadBeliefSpace::StateType>()->getX(),
+        state->as<FlatQuadBeliefSpace::StateType>()->getY(),
+        state->as<FlatQuadBeliefSpace::StateType>()->getZ()
+      );
+
+      arma::colvec axis_angle = arma::zeros<arma::colvec>(4);
+      axis_angle = state->as<FlatQuadBeliefSpace::StateType>()->flatToAxisAngle(); 
+      pose_state->as<ompl::base::SE3StateSpace::StateType>()->rotation().setAxisAngle(axis_angle[0], axis_angle[1], axis_angle[2], axis_angle[3]);
+
+      return pose_state;
     }
 
     void loadGoals() {

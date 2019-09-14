@@ -374,7 +374,8 @@ int FlatQuadBeliefSpace::StateType::flatTransformMethod() const {
 }
 
 arma::mat FlatQuadBeliefSpace::StateType::flatToDCM() const {
-  arma::mat R(3,3);
+  // returns rotation matrix from body to world frame
+  arma::mat Rwb(3,3);
   arma::colvec acc(4), t(3), xb(3), yb(3), zb(3);
   // double psi = state->as<StateType>()->getYaw();
   double psi = this->getYaw(); 
@@ -402,11 +403,37 @@ arma::mat FlatQuadBeliefSpace::StateType::flatToDCM() const {
     yb = arma::cross(zb,xb);
   }
 
-  R.col(0) = xb;
-  R.col(1) = yb;
-  R.col(2) = zb;
-  return R;
+  Rwb.col(0) = xb;
+  Rwb.col(1) = yb;
+  Rwb.col(2) = zb;
+  return Rwb;
 }
+
+arma::colvec FlatQuadBeliefSpace::StateType::flatToAxisAngle() const {
+  // returns 4D vector with [ax, ay, az, angle] where (ax,ay,az) are axis of rotation
+  arma::mat Rwb(3,3);
+  Rwb = this->flatToDCM();
+  arma::colvec ax_angle(4);
+
+  // TODO(acauligi)
+
+  return ax_angle;
+}
+
+ompl::base::StateSpacePtr FlatQuadBeliefSpace::StateType::flatToOMPLSO3() const {
+  // returns ompl SO3StateSpace object corresponding to orientation 
+  arma::mat Rwb(3,3);
+  Rwb = this->flatToDCM();
+
+  // TODO(acauligi)
+  arma::colvec ax(4);
+  ax = this->flatToAxisAngle();
+
+  ompl::base::StateSpacePtr rot(new ompl::base::SO3StateSpace());
+  // rot->as<ompl::base::SO3StateSpace*>()->setAxisAngle(ax[0], ax[1], ax[2], ax[3]);
+  return rot;
+}
+
 
 void FlatQuadBeliefSpace::printBeliefState(const State *state) {
   arma::colvec vel(4);

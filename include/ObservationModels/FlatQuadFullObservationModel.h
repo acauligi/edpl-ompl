@@ -43,18 +43,15 @@
 
 /**
   @par Short Description
-  This is an Observation model method based on known landmarks in world
-  frame that are transformed into image measurements using a perspective
-  camera model
+  This is an Observation model method with full state observability with noise
+  for the 12D flat quadrotor belief space
 
-  \brief image measurements of known landmarks in world frame. 
+  \brief full state feedback for 12D flat quad 
 */
-class LandmarkObservationModel : public ObservationModelMethod {
+class FlatQuadFullObservationModel : public ObservationModelMethod {
 
   static const int stateDim = 12;
-  static const int landmarkInfoDim = 3; /*[X, Y, Z]*/
-  static const int numLandmarksForObservability = 1;
-  static const int obsNoiseDim = 2;
+  static const int obsNoiseDim = 12;
 
   public:
     typedef ObservationModelMethod::ObservationType ObservationType;
@@ -62,9 +59,8 @@ class LandmarkObservationModel : public ObservationModelMethod {
     typedef arma::mat JacobianType;
 
     /** \brief Constructor */
-    LandmarkObservationModel(ompl::control::SpaceInformationPtr si, const char *pathToSetupFile) : ObservationModelMethod(si) {
+    FlatQuadFullObservationModel(ompl::control::SpaceInformationPtr si, const char *pathToSetupFile) : ObservationModelMethod(si) {
       // initialize etaPhi_, etaD_, sigma_;
-      this->loadLandmarks(pathToSetupFile);
       this->loadParameters(pathToSetupFile);
     }
 
@@ -84,7 +80,6 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
     /** \brief Jx = dh/dx */
     JacobianType getObservationJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
-    void getObservationHx(const ompl::base::State *state, arma::mat& Hx, size_t coord_idx); 
     
     /** \brief Jv = dh/dv */
     JacobianType getNoiseJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z);
@@ -98,20 +93,7 @@ class LandmarkObservationModel : public ObservationModelMethod {
     bool isStateObservable(const ompl::base::State *state);
 
   private:
-
-    /** \brief Estimates the 2D camera measurements of a landmark; returns false if landmark not visible */
-    bool getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas); 
-
-    std::vector<arma::colvec> landmarks_;
-
-    //Function to load landmarks from XML file into the object
-    void loadLandmarks(const char *pathToSetupFile);
-
     void loadParameters(const char *pathToSetupFile);
-
-    arma::mat K_;    // camera intrinsics matrix
-    arma::mat Rcb_;  // body to camera rotation matrix
-    arma::colvec pcb_; // body to camera translation
 
 };
 

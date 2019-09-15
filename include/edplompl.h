@@ -64,6 +64,7 @@
 #include "ObservationModels/TwoDBeaconObservationModel.h"
 #include "ObservationModels/HeadingBeaconObservationModel.h"
 #include "ObservationModels/LandmarkObservationModel.h"
+#include "ObservationModels/FlatQuadFullObservationModel.h"
 
 //Motion Models
 #include "MotionModels/MotionModelMethod.h"

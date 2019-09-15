@@ -102,6 +102,7 @@ add_library (bsp_lib
 	src/ObservationModels/TwoDBeaconObservationModel.cpp
 	src/ObservationModels/HeadingBeaconObservationModel.cpp
   src/ObservationModels/LandmarkObservationModel.cpp
+  src/ObservationModels/FlatQuadFullObservationModel.cpp
 	src/Planner/FIRM.cpp
 	src/Planner/FIRMCP.cpp
 	src/Planner/NBM3P.cpp

@@ -64,20 +64,54 @@ void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::con
 void FlatQuadMotionModel::generateOpenLoopControls(const ompl::base::State *startState,
                                                   const ompl::base::State *endState,
                                                   std::vector<ompl::control::Control*> &openLoopControls) {
+  // Jerk control input given by cubic polynomial over Tf horizon 
   using namespace arma;
   typedef typename MotionModelMethod::StateType StateType;
+
+  double dh = this->dt_;
+  double Tf = this->Tf_;
+  double translation_steps = Tf / dh;
 
   colvec start = startState->as<StateType>()->getArmaData(); // turn into colvec (in radian)
   colvec target = endState->as<StateType>()->getArmaData(); // turn into colvec (in radian)
 
-  double translation_steps = 0;
-  translation_steps = floor( std::max( fabs((target[0]-start[0])/(max_linear_velocity_*this->dt_)), fabs((target[1]-start[1])/(max_linear_velocity_*this->dt_))) );
+  // Math from "A computationally efficient motion primitive for quadrocopter
+  //  trajectory generation" by Mueller et al. (2015)
+  // TODO(acauligi): add bisection search for time-optimality and check for constraint satisfaction
+  double Tf5 = pow(Tf,5);
+  mat inv_matrix = zeros<mat>(3,3);   // Eq. 25 from paper
+  inv_matrix.row(0) = rowvec({720, -360*Tf, 60*pow(Tf,2)});
+  inv_matrix.row(1) = rowvec({-360*Tf, 168*pow(Tf,2), -24*pow(Tf,3)});
+  inv_matrix.row(2) = rowvec({60*pow(Tf,2), -24*pow(Tf,3), 3*pow(Tf,4)});
+  inv_matrix *= 1/Tf5;
 
-  colvec u_const;
-  u_const << (target[0]-start[0]) / (translation_steps*this->dt_) << endr
-          << (target[1]-start[1]) / (translation_steps*this->dt_) << endr;
+  // difference in pose, vel, and acc for each coordinate of flat state
+  // each column of deltas is (dp,dv,da) for (x,y,z,yaw)
+  mat deltas = zeros<mat>(3,4);
+  for (int ii=0; ii<4; ii++) {
+    deltas.col(ii) = colvec({target(ii)-start(ii), 
+                        target(4+ii)-start(4+ii), 
+                        target(8+ii)-start(8+ii)});
+  }
 
-  for(int i=0; i<translation_steps; i++) {
+  // Recover (alpha,beta,gamma) coefficients for polynomial
+  // Returns a 3x4 matrix with each col as (alpha,beta,gamma)
+  // for the four flat states
+  mat poly_coeffs = zeros<mat>(4,3);
+  poly_coeffs = inv_matrix * deltas;
+
+  // Sample continuous time control input at discrete interval
+  colvec u_const = zeros<colvec>(this->controlDim_);
+  for(int ii=0; ii<translation_steps; ii++) {
+    double t = ii*dh/Tf;
+    // Iterate through to get (jx,jy,jz,jyaw)
+    for (int jj=0; jj<4; jj++) {
+      double alpha = poly_coeffs(0,jj);
+      double beta = poly_coeffs(1,jj);
+      double gamma = poly_coeffs(2,jj);
+      u_const(jj) = 0.5*alpha*pow(t,2) + beta*t+ gamma;
+    }
+
     ompl::control::Control *tempControl = si_->allocControl();
     ARMA2OMPL(u_const, tempControl);
     openLoopControls.push_back(tempControl);
@@ -239,6 +273,8 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   this->max_linear_jerk_          = attribute_val;
   itemElement->QueryDoubleAttribute("dt", &attribute_val) ;
   this->dt_                     = attribute_val;
+  itemElement->QueryDoubleAttribute("Tf", &attribute_val) ;
+  this->Tf_ = attribute_val;
 
   OMPL_INFORM("FlatQuadMotionModel: sigma_ = ");
   std::cout<<this->sigma_<<std::endl;
@@ -254,4 +290,5 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
   OMPL_INFORM("FlatQuadMotionModel: max Linear Jerk (m/s^3)    = %f",         this->max_linear_jerk_);
 
   OMPL_INFORM("FlatQuadMotionModel: Timestep (seconds) = %f", this->dt_);
+  OMPL_INFORM("FlatQuadMotionModel: Maximum final time (seconds) = %f", this->Tf_);
 }

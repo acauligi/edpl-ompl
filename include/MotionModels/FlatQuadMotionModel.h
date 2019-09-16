@@ -114,6 +114,8 @@ class FlatQuadMotionModel: public MotionModelMethod {
     double max_linear_acceleration_;
     double max_linear_jerk_;
 
+    double Tf_;
+
     /** \brief Continuous time LTI triple integrator dynamics matrices */ 
     arma::mat A_; 
     arma::mat B_; 

@@ -181,7 +181,7 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
       void setXYZYaw(double x, double y, double z, double yaw) {
         setX(x);
         setY(y);
-        setY(z);
+        setZ(z);
         setYaw(yaw);
       }
 

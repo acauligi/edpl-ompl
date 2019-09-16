@@ -99,8 +99,12 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
   private:
 
+    bool lmkInViewingFrustrum(const arma::colvec& lmk_c); 
+
+    void getLmkInCameraFrame(const ompl::base::State *state, const arma::colvec& lmk_w, arma::colvec& lmk_c); 
+
     /** \brief Estimates the 2D camera measurements of a landmark; returns false if landmark not visible */
-    bool getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas); 
+    bool getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& lmk_w, arma::colvec& image_meas); 
 
     std::vector<arma::colvec> landmarks_;
 
@@ -109,9 +113,11 @@ class LandmarkObservationModel : public ObservationModelMethod {
 
     void loadParameters(const char *pathToSetupFile);
 
-    arma::mat K_;    // camera intrinsics matrix
-    arma::mat Rcb_;  // body to camera rotation matrix
-    arma::colvec pcb_; // body to camera translation
+    arma::mat K_;                 // camera intrinsics matrix
+    arma::mat Rcb_;               // body to camera rotation matrix
+    arma::colvec pcb_;            // body to camera translation
+    arma::colvec nc_;             // camera boresight vector n in camera frame 
+    double half_angle_camera_;    // camera viewing frustrum half angle [rad]
 
 };
 

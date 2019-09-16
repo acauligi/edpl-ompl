@@ -67,7 +67,8 @@ LandmarkObservationModel::getObservation(const ompl::base::State *state, bool is
     }
 
     colvec image_meas = zeros<colvec>(obsNoiseDim);
-    if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
+    colvec lmk_w = landmarks_[ii].subvec(1,3);    // discard ID value stored in landmark[0]
+    if (getPerspectiveProjection(state, lmk_w, image_meas)) {
       z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas + noise;
     }
   }
@@ -83,7 +84,8 @@ LandmarkObservationModel::getObservationPrediction(const ompl::base::State *stat
   //generate observation from state
   for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
     colvec image_meas = zeros<colvec>(obsNoiseDim);
-    if (getPerspectiveProjection(state, landmarks_[ii], image_meas)) {
+    colvec lmk_w = landmarks_[ii].subvec(1,3);    // discard ID value stored in landmark[0]
+    if (getPerspectiveProjection(state, lmk_w, image_meas)) {
       z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas; 
     }
   }
@@ -96,7 +98,7 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObs
 
   unsigned int number_of_landmarks = landmarks_.size();
 
-  colvec xVec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+  colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
 
   mat H(2*number_of_landmarks, 12); // Since we are passing the common id list
 
@@ -239,36 +241,60 @@ arma::mat LandmarkObservationModel::getObservationNoiseCovariance(const ompl::ba
 
   return R;
 }
-    
-bool LandmarkObservationModel::getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& landmark, arma::colvec& image_meas) {
+
+bool LandmarkObservationModel::lmkInViewingFrustrum(const arma::colvec& lmk_c) {
+  // lmk_c is 3D coordinate of position of landmark as resolved in camera frame
+  // Check angle between camera boresight vector and landmark
+  using namespace arma;
+  return  (dot(this->nc_, lmk_c) >= cos(this->half_angle_camera_));
+}
+
+void LandmarkObservationModel::getLmkInCameraFrame(const ompl::base::State *state, const arma::colvec& lmk_w, arma::colvec& lmk_c) {
 	using namespace arma;
 	colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
-  colvec lmk = landmark.subvec(1,3);    // discard ID value stored in landmark[0]
 
   // position of quad pbw and orientation of world w.r.t. quad Rwb 
   colvec pbw = x_vec.subvec(0,2); 
 	mat Rwb(3,3); 
-	// mat Rwb = state->as<FlatQuadBeliefSpace::StateType>()->flatToDCM();
-	
-  colvec lmk_world = this->K_ * (this->Rcb_* Rwb * lmk + this->Rcb_ * pbw + this->pcb_);
-  image_meas[0] = lmk_world[0] / lmk_world[2];
-  image_meas[1] = lmk_world[1] / lmk_world[2];
+  Rwb = state->as<FlatQuadBeliefSpace::StateType>()->flatToDCM();
 
-  // TODO(acauligi): add check to determine whether feature is within viewing frustum 
-  return true;
+  lmk_c = this->Rcb_* Rwb.t() * lmk_w + this->Rcb_ * pbw + this->pcb_;
+}
+    
+bool LandmarkObservationModel::getPerspectiveProjection(const ompl::base::State *state, const arma::colvec& lmk_w, arma::colvec& image_meas) {
+  // lmk_w is 3D coordinate of position of landmark as resolved in world frame
+	using namespace arma;
+
+  colvec lmk_c = zeros<colvec>(3);
+  getLmkInCameraFrame(state, lmk_w, lmk_c);
+
+  bool in_view = lmkInViewingFrustrum(lmk_c);
+
+  lmk_c = this->K_ * lmk_c;   // multiply by intrinsics matrix
+  image_meas[0] = lmk_c[0] / lmk_c[2];
+  image_meas[1] = lmk_c[1] / lmk_c[2];
+
+  return in_view; 
 }
 
 bool LandmarkObservationModel::isStateObservable(const ompl::base::State *state) {
+  // check if at least one landmark is within camera viewing frustrum
   using namespace arma;
 
-  colvec obs = this->getObservation(state, false);
+  colvec lmk_w = zeros<colvec>(3);        // position of landmark in world frame
+  colvec lmk_c = zeros<colvec>(3);        // position of landmark in camera frame
 
-  if(obs.n_rows > 2) {
-    return true;
+  for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
+    // convert landmark from world to camera frame
+    lmk_w = landmarks_[ii].subvec(1,3);    // discard ID value stored in landmark[0]
+    getLmkInCameraFrame(state, lmk_w, lmk_c);
+    lmk_c = normalise(lmk_c);
+
+    if (lmkInViewingFrustrum(lmk_c)) {
+      return true;
+    }
   }
-
   return false;
-
 }
 
 void LandmarkObservationModel::loadLandmarks(const char *pathToSetupFile) {
@@ -349,6 +375,10 @@ void LandmarkObservationModel::loadParameters(const char *pathToSetupFile) {
   assert( itemElement );
   double attribute_val;
 
+  // Read half angle for camera viewing frustrum [rad] 
+  itemElement->QueryDoubleAttribute("half_angle_camera", &attribute_val);
+  this->half_angle_camera_ = attribute_val;
+
   // Read camera intrinsics matrix parameters 
   this->K_ = arma::zeros(3,3);
   itemElement->QueryDoubleAttribute("K_alpha_u", &attribute_val);
@@ -392,6 +422,16 @@ void LandmarkObservationModel::loadParameters(const char *pathToSetupFile) {
   this->pcb_[1] = attribute_val;
   itemElement->QueryDoubleAttribute("pcb_z", &attribute_val);
   this->pcb_[2] = attribute_val;
+
+  // Read camera boresight vector (in camera frame) 
+  this->nc_ = arma::zeros(3);
+  itemElement->QueryDoubleAttribute("nc_x", &attribute_val);
+  this->nc_[0] = attribute_val; 
+  itemElement->QueryDoubleAttribute("nc_y", &attribute_val);
+  this->nc_[1] = attribute_val; 
+  itemElement->QueryDoubleAttribute("nc_z", &attribute_val);
+  this->nc_[2] = attribute_val; 
+  this->nc_ = arma::normalise(this->nc_);   // ensure unit vector
 
   // Read in noise parameter for adding to image measurements
   itemElement->QueryDoubleAttribute("sigma_ss", &attribute_val) ;

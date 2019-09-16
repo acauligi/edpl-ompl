@@ -16,6 +16,7 @@
     K_gamma = "0"
     K_u0 = "320.066"
     K_v0 = "241.160"
+    half_angle_camera = "1.04719"
     pcb_x= "0.01"
     pcb_y= "0.01"
     pcb_z= "0.01"
@@ -28,6 +29,9 @@
     Rcb_20= "0."
     Rcb_21= "0."
     Rcb_22= "1."
+    nc_x = "0."
+    nc_y= "0."
+    nc_z= "1."
 		/>
 </ObservationModels>
 <MotionModels>

@@ -115,17 +115,17 @@ public:
       bounds.setLow(0, -20.);     bounds.setHigh(0, 20.);
       bounds.setLow(1, -20.);     bounds.setHigh(1, 20.);
       bounds.setLow(2, -20.);     bounds.setHigh(2, 20.);
-      bounds.setLow(3, -6.28);     bounds.setHigh(3, 6.28);    // yaw angle value not used
+      bounds.setLow(3, -20.);     bounds.setHigh(3, 20.);    // yaw angle value not used
 
-      bounds.setLow(4, 0.);     bounds.setHigh(4, 0.);
-      bounds.setLow(5, 0.);     bounds.setHigh(5, 0.);
-      bounds.setLow(6, 0.);     bounds.setHigh(6, 0.);
-      bounds.setLow(7, 0.);     bounds.setHigh(7, 0.);
+      bounds.setLow(4, -0.01);     bounds.setHigh(4, 0.01);
+      bounds.setLow(5, -0.01);     bounds.setHigh(5, 0.01);
+      bounds.setLow(6, -0.01);     bounds.setHigh(6, 0.01);
+      bounds.setLow(7, -0.01);     bounds.setHigh(7, 0.01);
 
-      bounds.setLow(8, -0.);     bounds.setHigh(8, 0.);
-      bounds.setLow(9, -0.);     bounds.setHigh(9, 0.);
-      bounds.setLow(10, -0.);     bounds.setHigh(10, 0.);
-      bounds.setLow(11, -0.);     bounds.setHigh(11, 0);
+      bounds.setLow(8, -0.01);     bounds.setHigh(8, 0.01);
+      bounds.setLow(9, -0.01);     bounds.setHigh(9, 0.01);
+      bounds.setLow(10, -0.01);     bounds.setHigh(10, 0.01);
+      bounds.setLow(11, -0.01);     bounds.setHigh(11, 0.01);
 
       ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 
@@ -167,13 +167,25 @@ public:
     void setStartState(const double X, const double Y, const double Z, const double Yaw) {
       ompl::base::State *temp = siF_->allocState();
       temp->as<StateType>()->setXYZYaw(X,Y,Z,Yaw);
+
+      // Set velocity and acceleration to zero
+      arma::colvec rest_state = arma::zeros<arma::colvec>(4);
+      temp->as<StateType>()->setVelocity(rest_state);
+      temp->as<StateType>()->setAcceleration(rest_state);
+
       siF_->copyState(start_, temp);
       siF_->freeState(temp);
     }
 
-    void addGoalState(const double X, const double Y, const double Z) {
+    void addGoalState(const double X, const double Y, const double Z, const double Yaw) {
       ompl::base::State *temp = siF_->allocState();
-      temp->as<StateType>()->setXYZ(X,Y,Z);
+      temp->as<StateType>()->setXYZYaw(X,Y,Z,Yaw);
+
+      // Set velocity and acceleration to zero
+      arma::colvec rest_state = arma::zeros<arma::colvec>(4);
+      temp->as<StateType>()->setVelocity(rest_state);
+      temp->as<StateType>()->setAcceleration(rest_state);
+
       goal_list_.push_back(temp);
     }
 
@@ -189,7 +201,8 @@ public:
           throw ompl::Exception("Robot/Environment mesh files not setup!");
         }
 
-        ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
+        // TODO(acauligi): how to set bounds correctly given new environment mesh?
+        // ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
 
         // Create an FCL state validity checker and assign to space information
         const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);
@@ -202,16 +215,15 @@ public:
         siF_->setObservationModel(om);
 
         // Provide the motion model to the space
-        // We use the omnidirectional model because collision checking requires SE2
         MotionModelMethod::MotionModelPointer mm(new FlatQuadMotionModel(siF_, path_to_setup_file_.c_str()));            
         siF_->setMotionModel(mm);
 
         ompl::control::StatePropagatorPtr prop(ompl::control::StatePropagatorPtr(new FlatQuadStatePropagator(siF_)));
         state_propagator_ = prop;
-        siF_->setStatePropagator(state_propagator_);
+        siF_->setStatePropagator(state_propagator_);    // func that performs state propagation
         siF_->setPropagationStepSize(0.1); // this is the duration that a control is applied
-        siF_->setStateValidityCheckingResolution(0.005);
-        siF_->setMinMaxControlDuration(1,100);
+        siF_->setStateValidityCheckingResolution(0.005);  // controls are applied a time duration that is an integer multiple of argument here
+        siF_->setMinMaxControlDuration(1,100);  // min+max number of steps a control is propagated for
 
         if(!start_ || goal_list_.size() == 0) {
           throw ompl::Exception("Start/Goal not set");
@@ -219,6 +231,7 @@ public:
 
         pdef_->setStartAndGoalStates(start_, goal_list_[0], 1.0);
 
+        // Instantiate new planner object
         ompl::base::PlannerPtr plnr(new FIRM(siF_, false));
         planner_ = plnr;
         planner_->setProblemDefinition(pdef_);
@@ -230,10 +243,11 @@ public:
 
         // Setup visualizer because it is needed while loading roadmap and visualizing it
         Visualizer::updateSpaceInformation(this->getSpaceInformation());
-
         Visualizer::updateRenderer(*dynamic_cast<const ompl::app::RigidBodyGeometry*>(this), this->getGeometricStateExtractor());
 
-        if (use_saved_road_map_ == 1) planner_->as<FIRM>()->loadRoadMapFromFile(path_to_road_map_file_.c_str());
+        if (use_saved_road_map_ == 1) {
+          planner_->as<FIRM>()->loadRoadMapFromFile(path_to_road_map_file_.c_str());
+        }
 
         setup_ = true;
       }
@@ -351,34 +365,36 @@ protected:
       }
 
       TiXmlNode* node = 0;
-      TiXmlElement* landmarkElement = 0;
+      TiXmlElement* goalElement = 0;
       TiXmlElement* itemElement = 0;
 
-      // Get the landmarklist node
+      // Get the goallist node
       node = doc.FirstChild( "GoalList" );
       assert( node );
-      landmarkElement = node->ToElement(); //convert node to element
-      assert( landmarkElement  );
+      goalElement = node->ToElement(); //convert node to element
+      assert( goalElement  );
 
       TiXmlNode* child = 0;
 
-      //Iterate through all the landmarks and put them into the "landmarks_" list
-      while( (child = landmarkElement ->IterateChildren(child))) {
+      //Iterate through all the goals and assign last goal as goal state 
+      while( (child = goalElement ->IterateChildren(child))) {
         assert( child );
         itemElement = child->ToElement();
         assert( itemElement );
 
-        double goalX = 0 , goalY = 0, goalZ = 0, goalTheta = 0;
+        double goalX = 0 , goalY = 0, goalZ = 0, goalYaw = 0;
 
         itemElement->QueryDoubleAttribute("x", &goalX);
         itemElement->QueryDoubleAttribute("y", &goalY);
         itemElement->QueryDoubleAttribute("z", &goalZ);
+        itemElement->QueryDoubleAttribute("yaw", &goalYaw);
 
         std::cout<<"Loaded Goal Pose X: "<< goalX << 
           " Y: "<< goalY  << 
           " Z: "<< goalZ <<
+          " Yaw: "<< goalYaw<<
           std::endl;
-        addGoalState(goalX, goalY, goalZ);
+        addGoalState(goalX, goalY, goalZ, goalYaw);
       }
     }
 
@@ -512,13 +528,18 @@ protected:
     itemElement = child->ToElement();
     assert( itemElement );
 
-    double startX = 0,startY = 0, startZ = 0, startYaw = 0;
+    double startX = 0.,startY = 0., startZ = 0., startYaw = 0.;
 
     itemElement->QueryDoubleAttribute("x", &startX);
     itemElement->QueryDoubleAttribute("y", &startY);
     itemElement->QueryDoubleAttribute("z", &startZ);
     itemElement->QueryDoubleAttribute("yaw", &startYaw);
     setStartState(startX, startY, startZ, startYaw);
+    std::cout<<"Loaded Start Pose X: "<< startX << 
+      " Y: "<< startY << 
+      " Z: "<< startZ <<
+      " Yaw: "<< startYaw <<
+      std::endl;
 
     // read planning time
     child  = node->FirstChild("PlanningTime");

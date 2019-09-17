@@ -60,7 +60,8 @@ public:
         throw ompl::Exception("Robot/Environment mesh files not setup!");
       }
 
-      ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
+      // TODO(acauligi): how to set bounds correctly given new environment mesh?
+      // ss_->as<FlatQuadBeliefSpace>()->setBounds(inferEnvironmentBounds());
 
       // Create an FCL state validity checker and assign to space information
       const ompl::base::StateValidityCheckerPtr &fclSVC = this->allocStateValidityChecker(siF_, getGeometricStateExtractor(), false);

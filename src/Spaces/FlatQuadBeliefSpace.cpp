@@ -347,7 +347,7 @@ void FlatQuadBeliefSpace::getRelativeState(const State *from, const State *to, S
 
 int FlatQuadBeliefSpace::StateType::flatTransformMethod() const {
   arma::colvec acc(4), t(3), xc(3), yc(3), zb(3), yb(3), xb(3);
-  // double psi = state->as<StateType>()->getYaw();
+
   double psi = this->getYaw(); 
 
   // acc = state->as<StateType>()->getAcceleration();
@@ -365,9 +365,6 @@ int FlatQuadBeliefSpace::StateType::flatTransformMethod() const {
   double yc_zb_dist = arma::norm(arma::cross(zb,yc));
 
   if (xc_zb_dist > yc_zb_dist) {
-    yb = arma::cross(zb,xc);
-    yb = arma::normalise(yb);
-    xb = arma::cross(yb,zb);
     return ZYX;
   }
   return ZXY;

@@ -404,27 +404,26 @@ class FlatQuadBeliefSpace : public ompl::base::CompoundStateSpace {
 
   /** \copydoc RealVectorStateSpace::setBounds() */
   void setBounds(const RealVectorBounds &bounds) {
-    // TODO(acauligi): define correctly for all state components 
     ompl::base::RealVectorBounds pos_bounds(3);
     pos_bounds.setLow(0, bounds.low[0]);    pos_bounds.setHigh(0, bounds.high[0]);
     pos_bounds.setLow(1, bounds.low[1]);    pos_bounds.setHigh(1, bounds.high[1]);
     pos_bounds.setLow(2, bounds.low[2]);    pos_bounds.setHigh(2, bounds.high[2]);
     as<RealVectorStateSpace>(0)->setBounds(pos_bounds);
     
-    // yaw \in SO(2) does not have bound
+    // yaw \in SO(2) automatically has [-pi,pi] bounds 
 
     ompl::base::RealVectorBounds vel_bounds(4);
-    vel_bounds.setLow(0, -100.);    vel_bounds.setHigh(0, 100.);
-    vel_bounds.setLow(1, -100.);    vel_bounds.setHigh(1, 100.);
-    vel_bounds.setLow(2, -100.);    vel_bounds.setHigh(2, 100.);
-    vel_bounds.setLow(3, -100.);    vel_bounds.setHigh(3, 100.);
+    vel_bounds.setLow(0, bounds.low[4]);    vel_bounds.setHigh(0, bounds.high[4]);
+    vel_bounds.setLow(1, bounds.low[5]);    vel_bounds.setHigh(1, bounds.high[5]);
+    vel_bounds.setLow(2, bounds.low[6]);    vel_bounds.setHigh(2, bounds.high[6]);
+    vel_bounds.setLow(3, bounds.low[7]);    vel_bounds.setHigh(3, bounds.high[7]);
     as<RealVectorStateSpace>(2)->setBounds(vel_bounds);
     
     ompl::base::RealVectorBounds acc_bounds(4);
-    acc_bounds.setLow(0, -100.);    acc_bounds.setHigh(0, 100.);
-    acc_bounds.setLow(1, -100.);    acc_bounds.setHigh(1, 100.);
-    acc_bounds.setLow(2, -100.);    acc_bounds.setHigh(2, 100.);
-    acc_bounds.setLow(3, -100.);    acc_bounds.setHigh(3, 100.);
+    acc_bounds.setLow(0, bounds.low[8]);    acc_bounds.setHigh(0, bounds.high[8]);
+    acc_bounds.setLow(1, bounds.low[9]);    acc_bounds.setHigh(1, bounds.high[9]);
+    acc_bounds.setLow(2, bounds.low[10]);    acc_bounds.setHigh(2, bounds.high[10]);
+    acc_bounds.setLow(3, bounds.low[11]);    acc_bounds.setHigh(3, bounds.high[11]);
     as<RealVectorStateSpace>(3)->setBounds(acc_bounds);
   }
 

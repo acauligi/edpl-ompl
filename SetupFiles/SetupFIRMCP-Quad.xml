@@ -144,7 +144,7 @@
 
 	<Robot robotFile = "./Models/rollo_rotor_body.obj" />
 
-	<Environment environmentFile = "./Models/iLQG-TRO-Task1-Pole9x9.obj" />
+	<Environment environmentFile = "./Models/iLQG-TRO-Task1-Pole0x0.obj" />
 
 	<StartPose x = "2.215"	y = "2.215" z = "0.05" yaw = "-0.1" />
 	<PlanningTime maxTime = "800" />

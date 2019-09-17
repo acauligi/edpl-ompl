@@ -48,7 +48,7 @@ class FlatQuadMotionModel: public MotionModelMethod {
   //the motion model will only work with configurations of a particular dimension
   static const int stateDim = 12;
   static const int controlDim = 4;
-  static const int motionNoiseDim = 4;
+  static const int motionNoiseDim = 8;
 
   public:
     typedef typename MotionModelMethod::ControlType ControlType;

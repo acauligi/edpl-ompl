@@ -55,7 +55,7 @@ void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::con
   // TODO(acauligi): what is appropriate noise model for triple integrator?
   colvec x = state->as<StateType>()->getArmaData();
   // x = this->Ak_*x + this->Bk_*u + this->Gk_*(Un+Wg); 
-  x = this->Ak_*x + this->Bk_*u + this->Gk_ * Un; 
+  x = this->Ak_*x + this->Bk_*u ; 
 
   result->as<StateType>()->setArmaData(x);
 }
@@ -133,13 +133,13 @@ FlatQuadMotionModel::generateNoise(const ompl::base::State *state, const ompl::c
 
   NoiseType noise(this->noiseDim_);
 
-  colvec indepUn = randn(this->controlDim_,1);
+  colvec indepUn = randn<colvec>(this->controlDim_);
   
   mat P_Un = controlNoiseCovariance(control);
   
   colvec Un = indepUn % sqrt((P_Un.diag()));
 
-  colvec Wg = sqrt(P_Wg_) * randn(this->stateDim_,1);
+  colvec Wg = sqrt(P_Wg_) * randn(this->controlDim_,1);
   
   noise = join_cols(Un, Wg);
 
@@ -158,7 +158,6 @@ FlatQuadMotionModel::getControlJacobian(const ompl::base::State *state, const om
   typedef typename MotionModelMethod::StateType StateType;
   return this->Bk_; 
 }
-
 
 typename FlatQuadMotionModel::JacobianType
 FlatQuadMotionModel::getNoiseJacobian(const ompl::base::State *state, const ompl::control::Control* control, const NoiseType& w) {
@@ -179,9 +178,9 @@ arma::mat FlatQuadMotionModel::processNoiseCovariance(const ompl::base::State *s
                 P_Un.n_rows + P_Wg_.n_rows -1,
                 P_Un.n_cols + P_Wg_.n_cols -1) = P_Wg_;
 
+
   return Q_processNoise;
 }
-
 
 arma::mat FlatQuadMotionModel::controlNoiseCovariance(const ompl::control::Control* control) {
   using namespace arma;
@@ -197,11 +196,10 @@ arma::mat FlatQuadMotionModel::controlNoiseCovariance(const ompl::control::Contr
 
 void FlatQuadMotionModel::constructAB() {
   // LTI triple integrator model
-
   using namespace arma;
   // Set up continuous time dynamics matrices 
-  this->A_ = zeros(this->stateDim_, this->stateDim_);
-  this->B_ = zeros(this->stateDim_, this->controlDim_);
+  this->A_ = zeros<mat>(this->stateDim_, this->stateDim_);
+  this->B_ = zeros<mat>(this->stateDim_, this->controlDim_);
   for (int ii=0; ii<this->controlDim_; ii++) {
     this->A_[4+ii,4+ii] = 1;
     this->A_[8+ii,8+ii] = 1;
@@ -210,8 +208,8 @@ void FlatQuadMotionModel::constructAB() {
 
   // Set up discrete time update matrices
   this->Ak_ = eye(this->stateDim_, this->stateDim_);
-  this->Bk_ = zeros(this->stateDim_, this->controlDim_);
-  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->controlDim_);
+  this->Bk_ = zeros<mat>(this->stateDim_, this->controlDim_);
+  this->Gk_ = sqrt(this->dt_)*eye(this->stateDim_, this->noiseDim_); 
   for (int ii=0; ii<this->controlDim_; ii++) {
     this->Ak_[ii,4+ii] = this->dt_;
     this->Ak_[ii,8+ii] = 0.5*this->dt_ * this->dt_;
@@ -260,8 +258,8 @@ void FlatQuadMotionModel::loadParameters(const char *pathToSetupFile) {
 
   // Covariance of state additive noise
   itemElement->QueryDoubleAttribute("wind_noise_pos", &attribute_val) ;
-  rowvec Wg_root_vec(this->stateDim_);
-  Wg_root_vec = attribute_val * arma::ones<rowvec>(this->stateDim_);
+  rowvec Wg_root_vec(this->controlDim_);
+  Wg_root_vec = attribute_val * arma::ones<rowvec>(this->controlDim_);
   this->P_Wg_ = diagmat(square(Wg_root_vec));
   
   // MAV constraints in flat space

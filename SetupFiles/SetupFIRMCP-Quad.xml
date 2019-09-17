@@ -9,7 +9,6 @@
 </LandmarkList>
 <ObservationModels>
 	<LandmarkObservationModel
-		sigma_heading = "0.000001"
 		sigma_ss = "0.005"
     K_alpha_u = "382.126"
     K_alpha_v = "381.536"

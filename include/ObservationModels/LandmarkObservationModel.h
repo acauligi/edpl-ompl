@@ -51,10 +51,11 @@
 */
 class LandmarkObservationModel : public ObservationModelMethod {
 
+  static const bool use_full_state_feedback = true;
   static const int stateDim = 12;
   static const int landmarkInfoDim = 3; /*[X, Y, Z]*/
   static const int numLandmarksForObservability = 1;
-  static const int obsNoiseDim = 2;
+  static const int obsNoiseDim = use_full_state_feedback ? 12 : 2;
 
   public:
     typedef ObservationModelMethod::ObservationType ObservationType;

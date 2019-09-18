@@ -44,8 +44,10 @@
 typename LandmarkObservationModel::ObservationType 
 LandmarkObservationModel::getObservation(const ompl::base::State *state, bool isSimulation) {
 	using namespace arma;
+ 
+  size_t obs_length = use_full_state_feedback ? 12 : landmarkInfoDim*landmarks_.size();
 
-  ObservationType z(landmarkInfoDim*landmarks_.size());
+  ObservationType z(obs_length);
 
   //generate observation from state, and corrupt with the given noise
   for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
@@ -66,10 +68,15 @@ LandmarkObservationModel::getObservation(const ompl::base::State *state, bool is
       noise = sigma_%randNoiseVec;
     }
 
-    colvec image_meas = zeros<colvec>(obsNoiseDim);
-    colvec lmk_w = landmarks_[ii].subvec(1,3);    // discard ID value stored in landmark[0]
-    if (getPerspectiveProjection(state, lmk_w, image_meas)) {
-      z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas + noise;
+    if (use_full_state_feedback) {
+      colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+      z = x_vec + noise;
+    } else {
+      colvec image_meas = zeros<colvec>(obsNoiseDim);
+      colvec lmk_w = landmarks_[ii].subvec(1,3);    // discard ID value stored in landmark[0]
+      if (getPerspectiveProjection(state, lmk_w, image_meas)) {
+        z.subvec(landmarkInfoDim*ii,landmarkInfoDim*ii+1) = image_meas + noise;
+      }
     }
   }
  	return z;
@@ -79,7 +86,14 @@ typename LandmarkObservationModel::ObservationType
 LandmarkObservationModel::getObservationPrediction(const ompl::base::State *state, const ObservationType& Zg) {
 	using namespace arma;
 
-  ObservationType z(landmarkInfoDim*landmarks_.size());
+  size_t obs_length = use_full_state_feedback ? 12 : landmarkInfoDim*landmarks_.size();
+  ObservationType z(obs_length);
+
+  if (use_full_state_feedback) {
+    colvec x_vec = state->as<FlatQuadBeliefSpace::StateType>()->getArmaData();
+    z = x_vec;
+    return z;
+  }
 
   //generate observation from state
   for(unsigned int ii = 0; ii < landmarks_.size(); ii++) {
@@ -95,6 +109,12 @@ LandmarkObservationModel::getObservationPrediction(const ompl::base::State *stat
 
 typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getObservationJacobian(const ompl::base::State *state, const ObsNoiseType& v, const ObservationType& z) {
 	using namespace arma;
+
+  if (use_full_state_feedback) {
+    mat H(stateDim,obsNoiseDim);
+    H.eye();
+    return H;
+  }
 
   unsigned int number_of_landmarks = landmarks_.size();
 
@@ -215,6 +235,12 @@ typename LandmarkObservationModel::JacobianType LandmarkObservationModel::getNoi
 	using namespace arma;
 
   unsigned int number_of_landmarks = landmarks_.size() ;
+  
+  if (use_full_state_feedback) {
+    mat M(stateDim,obsNoiseDim);
+    M.eye();
+    return M;
+  }
 
   mat M(2*number_of_landmarks,2*number_of_landmarks);
   M.eye();
@@ -234,6 +260,12 @@ arma::mat LandmarkObservationModel::getObservationNoiseCovariance(const ompl::ba
 	using namespace arma;
 
   unsigned int number_of_landmarks = landmarks_.size();
+  if (use_full_state_feedback) {
+    mat R(obsNoiseDim,obsNoiseDim);
+    R.eye();
+    R = R*pow(this->sigma_(0),2);
+    return R;
+  }
 
   mat R(2*number_of_landmarks,2*number_of_landmarks);
   R.eye();
@@ -280,6 +312,7 @@ bool LandmarkObservationModel::getPerspectiveProjection(const ompl::base::State 
 bool LandmarkObservationModel::isStateObservable(const ompl::base::State *state) {
   // check if at least one landmark is within camera viewing frustrum
   using namespace arma;
+  if (use_full_state_feedback) return true;
 
   colvec lmk_w = zeros<colvec>(3);        // position of landmark in world frame
   colvec lmk_c = zeros<colvec>(3);        // position of landmark in camera frame

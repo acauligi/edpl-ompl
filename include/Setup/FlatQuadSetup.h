@@ -117,15 +117,15 @@ public:
       bounds.setLow(2, -20.);     bounds.setHigh(2, 20.);
       bounds.setLow(3, -20.);     bounds.setHigh(3, 20.);    // yaw angle value not used
 
-      bounds.setLow(4, -0.01);     bounds.setHigh(4, 0.01);
-      bounds.setLow(5, -0.01);     bounds.setHigh(5, 0.01);
-      bounds.setLow(6, -0.01);     bounds.setHigh(6, 0.01);
-      bounds.setLow(7, -0.01);     bounds.setHigh(7, 0.01);
+      bounds.setLow(4, -0.0001);     bounds.setHigh(4, 0.0);
+      bounds.setLow(5, -0.0001);     bounds.setHigh(5, 0.0);
+      bounds.setLow(6, -0.0001);     bounds.setHigh(6, 0.0);
+      bounds.setLow(7, -0.0001);     bounds.setHigh(7, 0.0);
 
-      bounds.setLow(8, -0.01);     bounds.setHigh(8, 0.01);
-      bounds.setLow(9, -0.01);     bounds.setHigh(9, 0.01);
-      bounds.setLow(10, -0.01);     bounds.setHigh(10, 0.01);
-      bounds.setLow(11, -0.01);     bounds.setHigh(11, 0.01);
+      bounds.setLow(8, -0.0001);     bounds.setHigh(8, 0.);
+      bounds.setLow(9, -0.0001);     bounds.setHigh(9, 0.);
+      bounds.setLow(10, -0.0001);     bounds.setHigh(10, 0.);
+      bounds.setLow(11, -0.0001);     bounds.setHigh(11, 0.);
 
       ss_->as<FlatQuadBeliefSpace>()->setBounds(bounds);
 

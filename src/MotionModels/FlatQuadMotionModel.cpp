@@ -53,11 +53,10 @@ void FlatQuadMotionModel::Evolve(const ompl::base::State *state, const ompl::con
   const colvec& Wg = w.subvec(this->controlDim_, this->noiseDim_-1);
 
   // TODO(acauligi): what is appropriate noise model for triple integrator?
-  colvec x = state->as<StateType>()->getArmaData();
-  // x = this->Ak_*x + this->Bk_*u + this->Gk_*(Un+Wg); 
-  x = this->Ak_*x + this->Bk_*u ; 
+  colvec x_vec = state->as<StateType>()->getArmaData();
+  x_vec = this->Ak_*x_vec+ this->Bk_*u + this->Gk_ * w; 
 
-  result->as<StateType>()->setArmaData(x);
+  result->as<StateType>()->setArmaData(x_vec);
 }
 
 
@@ -149,6 +148,7 @@ FlatQuadMotionModel::generateNoise(const ompl::base::State *state, const ompl::c
 typename FlatQuadMotionModel::JacobianType
 FlatQuadMotionModel::getStateJacobian(const ompl::base::State *state, const ompl::control::Control* control, const NoiseType& w) {
   using namespace arma;
+  typedef typename MotionModelMethod::StateType StateType;
   return this->Ak_; 
 }
 

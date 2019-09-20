@@ -288,8 +288,8 @@ public:
       if(goal_list_.size() > 1) {
         updateEnvironmentMesh();
 
-        for(int i=0; i < goal_list_.size()-1;i++) {
-          pdef_->setStartAndGoalStates(goal_list_[i], goal_list_[i+1], 1.0);
+        for(int ii=0; ii < goal_list_.size()-1;ii++) {
+          pdef_->setStartAndGoalStates(goal_list_[ii], goal_list_[ii+1], 1.0);
 
           planner_->setProblemDefinition(pdef_);
 
@@ -307,7 +307,7 @@ public:
           OMPL_ERROR("Couldn't set mesh with path: %s",dyn_obst_list_[obindx]);
         }
         
-        const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_2D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);
+        const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_3D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);
 
         siF_->setStateValidityChecker(svc);
 

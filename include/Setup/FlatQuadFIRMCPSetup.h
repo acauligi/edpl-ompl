@@ -142,7 +142,7 @@ public:
         OMPL_ERROR("Couldn't set mesh with path: %s",dyn_obst_list_[obindx]);
       }
 
-      const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_2D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);
+      const ompl::base::StateValidityCheckerPtr &svc = std::make_shared<ompl::app::FCLStateValidityChecker<ompl::app::Motion_3D>>(siF_,  getGeometrySpecification(), getGeometricStateExtractor(), false);
 
       siF_->setStateValidityChecker(svc);
 

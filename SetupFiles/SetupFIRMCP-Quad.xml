@@ -145,13 +145,13 @@
 
 	<Environment environmentFile = "./Models/iLQG-TRO-Task1-Pole0x0.obj" />
 
-	<StartPose x = "2.215"	y = "2.215" z = "0.05" yaw = "-0.1" />
+	<StartPose x = "-16."	y = "-16." z = "5." yaw = "-0.1" />
 	<PlanningTime maxTime = "800" />
 	<KidnappedState x = 1.5 y = 19.5 />
 </PlanningProblem>
 
 <GoalList>
-	<GoalPose x = "7.785" y = "7.785" z = "0.4" yaw = "0.05" />
+	<GoalPose x = "7.785" y = "-7.785" z = "5." yaw = "0.05" />
 </GoalList>
 
 <GoalConstraints>

@@ -13,7 +13,7 @@ mkdir -p ~/ros/firm_ws/src
 cd ~/ros/firm_ws/src
 
 # install source code
-git clone https://github.com/sauravag/edpl-ompl.git
+git clone https://github.com/acauligi/edpl-ompl.git
 
 # install dependencies
 	# install omplapp from source
